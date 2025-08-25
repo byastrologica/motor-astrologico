@@ -1,13 +1,18 @@
 const express = require('express');
 const sweph = require('sweph');
 const cors = require('cors');
+// Importar nosso novo dicionário de constantes
+const {
+    SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
+    SE_URANUS, SE_NEPTUNE, SE_PLUTO, SE_TRUE_NODE, SE_CHIRON, SEFLG_SPEED
+} = require('./constants');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(cors());
 
-// Configura o caminho para os arquivos de efemérides que vêm com o pacote
+// Configura o caminho para os arquivos de efemérides
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
 // A rota principal da nossa API
@@ -21,31 +26,32 @@ app.post('/calculate', async (req, res) => {
         }
 
         // --- 1. CÁLCULO DO DIA JULIANO ---
-        const jd_ut_obj = await sweph.utc_to_jd(year, month, day, hour, 0, 0, 1); // 1 = Calendário Gregoriano
-        const julianDay = jd_ut_obj.julianDayUT;
+        const jd_ut_obj = await sweph.utc_to_jd(year, month, day, hour, 0, 0, 1);
+        const julianDay = jd_ut_obj.data[0];
 
         // --- 2. CÁLCULO DAS CASAS (PLACIDUS) ---
-        const houses = await sweph.houses(julianDay, lat, lon, 'P'); // 'P' para Placidus
+        const houses = await sweph.houses(julianDay, lat, lon, 'P');
 
         // --- 3. CÁLCULO DOS PLANETAS E PONTOS ---
         const planetsToCalc = [
-            { id: sweph.SE_SUN, name: 'sun' },
-            { id: sweph.SE_MOON, name: 'moon' },
-            { id: sweph.SE_MERCURY, name: 'mercury' },
-            { id: sweph.SE_VENUS, name: 'venus' },
-            { id: sweph.SE_MARS, name: 'mars' },
-            { id: sweph.SE_JUPITER, name: 'jupiter' },
-            { id: sweph.SE_SATURN, name: 'saturn' },
-            { id: sweph.SE_URANUS, name: 'uranus' },
-            { id: sweph.SE_NEPTUNE, name: 'neptune' },
-            { id: sweph.SE_PLUTO, name: 'pluto' },
-            { id: sweph.SE_TRUE_NODE, name: 'north_node' },
-            { id: sweph.SE_CHIRON, name: 'chiron' }
+            { id: SE_SUN, name: 'sun' },
+            { id: SE_MOON, name: 'moon' },
+            { id: SE_MERCURY, name: 'mercury' },
+            { id: SE_VENUS, name: 'venus' },
+            { id: SE_MARS, name: 'mars' },
+            { id: SE_JUPITER, name: 'jupiter' },
+            { id: SE_SATURN, name: 'saturn' },
+            { id: SE_URANUS, name: 'uranus' },
+            { id: SE_NEPTUNE, name: 'neptune' },
+            { id: SE_PLUTO, name: 'pluto' },
+            { id: SE_TRUE_NODE, name: 'north_node' },
+            { id: SE_CHIRON, name: 'chiron' }
         ];
 
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
-            const position = await sweph.calc_ut(julianDay, planet.id, sweph.SEFLG_SPEED);
+            // Usando as constantes numéricas do nosso dicionário
+            const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
             calculatedPlanets[planet.name] = {
                 longitude: position.longitude,
                 latitude: position.latitude,
