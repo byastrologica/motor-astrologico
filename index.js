@@ -51,6 +51,7 @@ app.post('/calculate', async (req, res) => {
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
             const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
+            // CORREÇÃO: Pegando os dados do array 'data'
             calculatedPlanets[planet.name] = {
                 longitude: position.data[0],
                 latitude: position.data[1],
@@ -63,7 +64,7 @@ app.post('/calculate', async (req, res) => {
             message: "Cálculo de planetas e casas realizado com sucesso!",
             julianDay: julianDay,
             planets: calculatedPlanets,
-            // CORREÇÃO FINAL: Pegando os dados das casas do array 'data'
+            // CORREÇÃO: Pegando os dados do array 'data' para casas, ascendente e mc
             houses: {
                 ascendant: houses.data[0],
                 mc: houses.data[1],
