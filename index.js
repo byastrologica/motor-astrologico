@@ -50,12 +50,12 @@ app.post('/calculate', async (req, res) => {
 
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
-            // Usando as constantes numéricas do nosso dicionário
             const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
+            // CORREÇÃO: Pegando os dados do array 'data'
             calculatedPlanets[planet.name] = {
-                longitude: position.longitude,
-                latitude: position.latitude,
-                speed: position.longitude_speed
+                longitude: position.data[0],
+                latitude: position.data[1],
+                speed: position.data[3]
             };
         }
 
@@ -64,10 +64,16 @@ app.post('/calculate', async (req, res) => {
             message: "Cálculo de planetas e casas realizado com sucesso!",
             julianDay: julianDay,
             planets: calculatedPlanets,
+            // CORREÇÃO: Pegando os dados do array 'data' para casas, ascendente e mc
             houses: {
-                ascendant: houses.ascendant,
-                mc: houses.mc,
-                cusps: houses.house_cusps
+                ascendant: houses.data[0],
+                mc: houses.data[1],
+                cusps: [
+                    houses.data[13], houses.data[14], houses.data[15],
+                    houses.data[16], houses.data[17], houses.data[18],
+                    houses.data[19], houses.data[20], houses.data[21],
+                    houses.data[22], houses.data[23], houses.data[24]
+                ]
             }
         };
 
