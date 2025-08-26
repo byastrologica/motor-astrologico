@@ -6,13 +6,9 @@
   "scripts": {
     "start": "node index.js"
   },
-  "engines": {
-    "node": "22.x",
-    "npm": "10.x"
-  },
   "dependencies": {
     "express": "^4.19.2",
-    "sweph": "latest",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "astrologia-js": "latest"
   }
 }
