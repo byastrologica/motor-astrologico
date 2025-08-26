@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
-// Importando a nova biblioteca única e confiável
-const { Horoscope } = require('astrologia-js');
+// Importando a biblioteca com o nome correto
+const { Horoscope } = require('astrologia');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,26 +18,26 @@ app.post('/calculate', (req, res) => {
             return res.status(400).json({ error: 'Dados de entrada incompletos.' });
         }
 
-        // A biblioteca 'astrologia-js' precisa da hora local e do fuso horário.
-        // Como o frontend já envia a hora em UTC, vamos informar que o fuso é 0.
+        // --- 1. CONVERTER HORA DECIMAL PARA HORA E MINUTO ---
         const h = Math.floor(hour);
         const m = Math.round((hour - h) * 60);
 
+        // --- 2. CRIAR O HORÓSCOPO COM A NOVA BIBLIOTECA ---
         const horoscope = new Horoscope({
-            date: new Date(Date.UTC(year, month - 1, day, h, m)),
+            date: new Date(year, month - 1, day, h, m),
             latitude: lat,
             longitude: lon,
             houseSystem: 'placidus'
         });
 
-        // --- Extrair Planetas ---
+        // --- 3. EXTRAIR PLANETAS ---
         const calculatedPlanets = {};
         const planetNames = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto', 'chiron', 'true_north_node'];
-
+        
         for (const name of planetNames) {
             const planet = horoscope.planets[name];
             if (planet) {
-                 calculatedPlanets[name.replace('true_', '')] = { // Renomeia 'true_north_node' para 'north_node'
+                 calculatedPlanets[name.replace('true_', '')] = {
                     longitude: planet.longitude,
                     latitude: planet.latitude,
                     speed: planet.speed.longitude
@@ -45,14 +45,14 @@ app.post('/calculate', (req, res) => {
             }
         }
 
-        // --- Extrair Casas ---
+        // --- 4. EXTRAIR CASAS ---
         const calculatedHouses = {
             ascendant: horoscope.ascendant.longitude,
             mc: horoscope.mc.longitude,
             cusps: horoscope.houses.map(cusp => cusp.longitude)
         };
 
-        // --- Montar a Resposta Final ---
+        // --- 5. MONTAR A RESPOSTA FINAL ---
         const responseData = {
             message: "Cálculo completo realizado com sucesso!",
             planets: calculatedPlanets,
