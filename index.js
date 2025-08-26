@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 // Importando a biblioteca com o nome correto
-const { Horoscope } = require('astrologia');
+const { Horoscope } = require('astrology-js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -37,7 +37,7 @@ app.post('/calculate', (req, res) => {
         for (const name of planetNames) {
             const planet = horoscope.planets[name];
             if (planet) {
-                 calculatedPlanets[name.replace('true_', '')] = {
+                 calculatedPlanets[name.replace('true_', '')] = { // Renomeia 'true_north_node' para 'north_node'
                     longitude: planet.longitude,
                     latitude: planet.latitude,
                     speed: planet.speed.longitude
