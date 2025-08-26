@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
-// Importando a biblioteca da maneira correta
-const Horoscope = require('astrology-js');
+// LINHA CORRIGIDA: Adicionando '.default' para compatibilidade
+const Horoscope = require('astrology-js').default;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
