@@ -1,5 +1,5 @@
 {
-  "name": "motor-astrologico-correto",
+  "name": "motor-astrologico",
   "version": "1.0.0",
   "description": "API para cálculos astrológicos com Swiss Ephemeris",
   "main": "index.js",
