@@ -36,31 +36,9 @@ app.post('/calculate', async (req, res) => {
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
             const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
-            // CORREÇÃO: Pegando os dados do array 'data'
             calculatedPlanets[planet.name] = {
                 longitude: position.data[0],
                 latitude: position.data[1],
                 speed: position.data[3]
             };
         }
-
-        const responseData = {
-            message: "Cálculo planetário realizado com sucesso!",
-            planets: calculatedPlanets
-        };
-
-        res.status(200).json(responseData);
-
-    } catch (error) {
-        console.error("Erro no cálculo:", error);
-        res.status(500).json({ error: 'Erro interno ao realizar o cálculo.', details: error.toString() });
-    }
-});
-
-app.get('/', (req, res) => {
-    res.send('Servidor astrológico no ar. Use o endpoint POST /calculate para fazer os cálculos.');
-});
-
-app.listen(PORT, () => {
-    console.log(`Servidor rodando na porta ${PORT}`);
-});
