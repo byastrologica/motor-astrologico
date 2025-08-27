@@ -1,10 +1,10 @@
 const express = require('express');
 const sweph = require('sweph');
 const cors = require('cors');
-// Importar nosso dicionário de constantes
+// Importar nosso novo dicionário de constantes
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
-    SE_URANUS, SE_NEPTUNE, SE_PLUTO, SE_TRUE_NODE, SE_CHIRON, SEFLG_SPEED
+    SE_URANUS, SE_NEPTUNE, SE_PLUTO, SE_TRUE_NODE, SEFLG_SPEED
 } = require('./constants');
 
 const app = express();
@@ -45,16 +45,16 @@ app.post('/calculate', async (req, res) => {
             { id: SE_NEPTUNE, name: 'neptune' },
             { id: SE_PLUTO, name: 'pluto' },
             { id: SE_TRUE_NODE, name: 'north_node' },
-            { id: SE_CHIRON, name: 'chiron' }
         ];
 
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
+            // Usando as constantes numéricas do nosso dicionário
             const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
             calculatedPlanets[planet.name] = {
-                longitude: position.data[0],
-                latitude: position.data[1],
-                speed: position.data[3]
+                longitude: position.longitude,
+                latitude: position.latitude,
+                speed: position.longitude_speed
             };
         }
 
@@ -63,16 +63,10 @@ app.post('/calculate', async (req, res) => {
             message: "Cálculo de planetas e casas realizado com sucesso!",
             julianDay: julianDay,
             planets: calculatedPlanets,
-            // CORREÇÃO FINAL E DEFINITIVA: Lendo os dados das casas do array 'data'
             houses: {
-                ascendant: houses.data[0],
-                mc: houses.data[1],
-                cusps: [
-                    houses.data[13], houses.data[14], houses.data[15],
-                    houses.data[16], houses.data[17], houses.data[18],
-                    houses.data[19], houses.data[20], houses.data[21],
-                    houses.data[22], houses.data[23], houses.data[24]
-                ]
+                ascendant: houses.ascendant,
+                mc: houses.mc,
+                cusps: houses.house_cusps
             }
         };
 
