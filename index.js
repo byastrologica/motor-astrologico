@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
-// LINHA CORRIGIDA: Adicionando '.default' para compatibilidade
-const Horoscope = require('astrology-js').default;
+// Importando a biblioteca única e confiável
+const { Horoscope } = require('astrologia-js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -22,12 +22,12 @@ app.post('/calculate', (req, res) => {
         const h = Math.floor(hour);
         const m = Math.round((hour - h) * 60);
 
-        // --- 2. CRIAR O HORÓSCOPO COM A NOVA BIBLIOTECA ---
+        // --- 2. CRIAR O HORÓSCOPO (sem o cálculo de casas) ---
         const horoscope = new Horoscope({
             date: new Date(year, month - 1, day, h, m),
             latitude: lat,
-            longitude: lon,
-            houseSystem: 'placidus'
+            longitude: lon
+            // A opção 'houseSystem' foi removida
         });
 
         // --- 3. EXTRAIR PLANETAS ---
@@ -45,18 +45,10 @@ app.post('/calculate', (req, res) => {
             }
         }
 
-        // --- 4. EXTRAIR CASAS ---
-        const calculatedHouses = {
-            ascendant: horoscope.ascendant.longitude,
-            mc: horoscope.mc.longitude,
-            cusps: horoscope.houses.map(cusp => cusp.longitude)
-        };
-
-        // --- 5. MONTAR A RESPOSTA FINAL ---
+        // --- 4. MONTAR A RESPOSTA FINAL (apenas com planetas) ---
         const responseData = {
-            message: "Cálculo completo realizado com sucesso!",
-            planets: calculatedPlanets,
-            houses: calculatedHouses
+            message: "Cálculo planetário realizado com sucesso!",
+            planets: calculatedPlanets
         };
 
         res.status(200).json(responseData);
