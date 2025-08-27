@@ -1,7 +1,7 @@
 {
   "name": "motor-astrologico",
   "version": "1.0.0",
-  "description": "API para cálculos astrológicos com Swiss Ephemeris",
+  "description": "API para cálculos astrológicos",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -9,6 +9,6 @@
   "dependencies": {
     "express": "^4.19.2",
     "cors": "^2.8.5",
-    "astrology-js": "latest"
+    "astrologia-js": "latest"
   }
 }
