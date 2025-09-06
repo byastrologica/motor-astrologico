@@ -1,12 +1,13 @@
 // =================================================================
 // DEPENDÊNCIAS E CONFIGURAÇÃO INICIAL
 // =================================================================
-require('dotenv').config(); // Carrega as variáveis de ambiente do arquivo .env
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const sweph = require('sweph');
 const axios = require('axios');
 const NodeGeocoder = require('node-geocoder');
+const moment = require('moment-timezone'); // <-- IMPORTANTE: NOVA BIBLIOTECA EM USO
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
     SE_URANUS, SE_NEPTUNE, SE_PLUTO, SE_TRUE_NODE, SEFLG_SPEED
@@ -29,13 +30,10 @@ const geocoder = NodeGeocoder({
 // =================================================================
 // ROTA DE AUTOCOMPLETE DE CIDADES
 // =================================================================
+// ... (esta seção não muda e foi omitida por brevidade, o código completo está abaixo)
 async function buscarCidade(textoDigitado) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY; 
-    
-    if (!CHAVE_API) {
-        console.error("Chave de API da Geoapify não encontrada.");
-        throw new Error("Configuração do servidor incompleta.");
-    }
+    if (!CHAVE_API) { throw new Error("Configuração do servidor incompleta."); }
     const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(textoDigitado)}&lang=pt&limit=5&type=city&format=json&apiKey=${CHAVE_API}`;
     try {
         const response = await axios.get(url);
@@ -50,76 +48,69 @@ async function buscarCidade(textoDigitado) {
             }));
         }
         return resultadosLimpos;
-    } catch (error) {
-        console.error("Erro ao buscar cidade na Geoapify:", error.response ? error.response.data : error.message);
-        throw new Error("Erro ao comunicar com o serviço de geolocalização.");
-    }
+    } catch (error) { throw new Error("Erro ao comunicar com o serviço de geolocalização."); }
 }
 app.get('/api/cidades', async (req, res) => {
     const { busca } = req.query;
-    if (!busca || busca.trim().length < 2) {
-        return res.status(400).json({ error: 'Parâmetro "busca" é obrigatório e deve ter ao menos 2 caracteres.' });
-    }
+    if (!busca || busca.trim().length < 2) { return res.status(400).json({ error: 'Parâmetro "busca" é obrigatório e deve ter ao menos 2 caracteres.' }); }
     try {
         const resultados = await buscarCidade(busca);
         res.status(200).json(resultados);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 
 // =================================================================
-// ROTA PRINCIPAL DE CÁLCULO DO MAPA
+// ROTA PRINCIPAL DE CÁLCULO DO MAPA (COM AJUSTE DE FUSO HORÁRIO)
 // =================================================================
 app.post('/calculate', async (req, res) => {
     try {
         const { year, month, day, hour, locationString } = req.body;
 
         if (year == null || month == null || day == null || hour == null || !locationString) {
-            return res.status(400).json({ error: 'Dados de entrada incompletos. São necessários: year, month, day, hour, locationString.' });
+            return res.status(400).json({ error: 'Dados de entrada incompletos.' });
         }
 
         const geoResult = await geocoder.geocode(locationString);
-        if (!geoResult || geoResult.length === 0) {
-            return res.status(400).json({ error: `Localização "${locationString}" não encontrada.` });
+        if (!geoResult || !geoResult[0] || !geoResult[0].extra || !geoResult[0].extra.timezone) {
+            // LocationIQ retorna o timezone no campo 'extra'
+            return res.status(400).json({ error: `Não foi possível encontrar o fuso horário para "${locationString}".` });
         }
         const lat = geoResult[0].latitude;
         const lon = geoResult[0].longitude;
-        
-        const jd_ut_obj = await sweph.utc_to_jd(year, month, day, hour, 0, 0, 1);
-        const julianDay = jd_ut_obj.data[0];
+        const timezone = geoResult[0].extra.timezone; // Ex: "America/Sao_Paulo"
 
         // ======================================================
-        // CÁLCULO DAS CASAS E ASCENDENTE (SEÇÃO CORRIGIDA)
+        // CONVERSÃO PRECISA PARA UTC (NOVA SEÇÃO)
         // ======================================================
-        const houseSystem = 'P'; // P para Placidus
+        // 1. Criar a data/hora local usando o fuso horário encontrado
+        const birthTimeLocal = moment.tz({ year, month: month - 1, day, hour }, timezone);
+
+        // 2. Converter para UTC
+        const birthTimeUtc = birthTimeLocal.clone().utc();
+
+        // 3. Extrair os componentes da data/hora UTC para a Swiss Ephemeris
+        const utcYear = birthTimeUtc.year();
+        const utcMonth = birthTimeUtc.month() + 1; // moment months são 0-11
+        const utcDay = birthTimeUtc.date();
+        const utcHour = birthTimeUtc.hour() + (birthTimeUtc.minute() / 60) + (birthTimeUtc.second() / 3600);
+        // ======================================================
+
+        // Usar os novos dados UTC para o cálculo do Dia Juliano
+        const jd_ut_obj = await sweph.utc_to_jd(utcYear, utcMonth, utcDay, utcHour, 0, 0, 1);
+        const julianDay = jd_ut_obj.data[0];
+
+        const houseSystem = 'P';
         const housesResult = await sweph.houses(julianDay, lat, lon, houseSystem);
         
-        // VERIFICAÇÃO DE SEGURANÇA para evitar o erro 'reading 0 of undefined'
         if (!housesResult || !housesResult.ascmc || !housesResult.cusps) {
             throw new Error("Não foi possível calcular as casas astrológicas para esta data/local.");
         }
         
         const calculatedHouses = {
-            ascendant: housesResult.ascmc[0],
-            mc: housesResult.ascmc[1],
-            cusps: {
-                1: housesResult.cusps[0],
-                2: housesResult.cusps[1],
-                3: housesResult.cusps[2],
-                4: housesResult.cusps[3],
-                5: housesResult.cusps[4],
-                6: housesResult.cusps[5],
-                7: housesResult.cusps[6],
-                8: housesResult.cusps[7],
-                9: housesResult.cusps[8],
-                10: housesResult.cusps[9],
-                11: housesResult.cusps[10],
-                12: housesResult.cusps[11]
-            }
+            ascendant: housesResult.ascmc[0], mc: housesResult.ascmc[1],
+            cusps: { 1: housesResult.cusps[0], 2: housesResult.cusps[1], 3: housesResult.cusps[2], 4: housesResult.cusps[3], 5: housesResult.cusps[4], 6: housesResult.cusps[5], 7: housesResult.cusps[6], 8: housesResult.cusps[7], 9: housesResult.cusps[8], 10: housesResult.cusps[9], 11: housesResult.cusps[10], 12: housesResult.cusps[11] }
         };
-        // ======================================================
 
         const planetsToCalc = [
             { id: SE_SUN, name: 'sun' }, { id: SE_MOON, name: 'moon' },
@@ -133,55 +124,33 @@ app.post('/calculate', async (req, res) => {
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
             const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
-            calculatedPlanets[planet.name] = {
-                longitude: position.data[0],
-                latitude: position.data[1],
-                speed: position.data[3]
-            };
+            calculatedPlanets[planet.name] = { longitude: position.data[0], latitude: position.data[1], speed: position.data[3] };
         }
 
         const aspectsConfig = {
-            conjunction: { angle: 0, orb: 10 },
-            opposition: { angle: 180, orb: 10 },
-            trine: { angle: 120, orb: 10 },
-            square: { angle: 90, orb: 10 },
-            sextile: { angle: 60, orb: 6 }
+            conjunction: { angle: 0, orb: 10 }, opposition: { angle: 180, orb: 10 },
+            trine: { angle: 120, orb: 10 }, square: { angle: 90, orb: 10 }, sextile: { angle: 60, orb: 6 }
         };
 
-        const planetPoints = Object.keys(calculatedPlanets).map(name => ({
-            name: name,
-            longitude: calculatedPlanets[name].longitude
-        }));
+        const planetPoints = Object.keys(calculatedPlanets).map(name => ({ name: name, longitude: calculatedPlanets[name].longitude }));
         
         const foundAspects = [];
         for (let i = 0; i < planetPoints.length; i++) {
             for (let j = i + 1; j < planetPoints.length; j++) {
-                const planet1 = planetPoints[i];
-                const planet2 = planetPoints[j];
+                const planet1 = planetPoints[i]; const planet2 = planetPoints[j];
                 let distance = Math.abs(planet1.longitude - planet2.longitude);
-                if (distance > 180) {
-                    distance = 360 - distance;
-                }
+                if (distance > 180) { distance = 360 - distance; }
                 for (const aspectName in aspectsConfig) {
                     const aspect = aspectsConfig[aspectName];
                     const orb = Math.abs(distance - aspect.angle);
-                    if (orb <= aspect.orb) {
-                        foundAspects.push({
-                            point1: planet1.name,
-                            point2: planet2.name,
-                            aspect_type: aspectName,
-                            orb_degrees: parseFloat(orb.toFixed(2))
-                        });
-                    }
+                    if (orb <= aspect.orb) { foundAspects.push({ point1: planet1.name, point2: planet2.name, aspect_type: aspectName, orb_degrees: parseFloat(orb.toFixed(2)) }); }
                 }
             }
         }
 
         const responseData = {
             message: "Cálculo completo do mapa astral realizado com sucesso!",
-            houses: calculatedHouses,
-            planets: calculatedPlanets,
-            aspects: foundAspects
+            houses: calculatedHouses, planets: calculatedPlanets, aspects: foundAspects
         };
 
         res.status(200).json(responseData);
