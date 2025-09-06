@@ -23,7 +23,7 @@ sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 // Configura o provedor de Geocoding (com User-Agent para seguir a política do OSM)
 const geocoder = NodeGeocoder({
   provider: 'openstreetmap',
-  userAgent: 'Motor Astrologico byAstrologica/1.0' // <-- MUDANÇA IMPORTANTE AQUI
+  userAgent: 'Motor Astrologico byAstrologica/1.0'
 });
 
 // =================================================================
@@ -116,3 +116,36 @@ app.post('/calculate', async (req, res) => {
             calculatedPlanets[planet.name] = {
                 longitude: position.data[0],
                 latitude: position.data[1],
+                speed: position.data[3]
+            };
+        }
+
+        const aspectsConfig = {
+            conjunction: { angle: 0, orb: 10 },
+            opposition: { angle: 180, orb: 10 },
+            trine: { angle: 120, orb: 10 },
+            square: { angle: 90, orb: 10 },
+            sextile: { angle: 60, orb: 6 }
+        };
+
+        const planetPoints = Object.keys(calculatedPlanets).map(name => ({
+            name: name,
+            longitude: calculatedPlanets[name].longitude
+        }));
+        
+        const foundAspects = [];
+        for (let i = 0; i < planetPoints.length; i++) {
+            for (let j = i + 1; j < planetPoints.length; j++) {
+                const planet1 = planetPoints[i];
+                const planet2 = planetPoints[j];
+
+                let distance = Math.abs(planet1.longitude - planet2.longitude);
+                if (distance > 180) {
+                    distance = 360 - distance;
+                }
+
+                for (const aspectName in aspectsConfig) {
+                    const aspect = aspectsConfig[aspectName];
+                    const orb = Math.abs(distance - aspect.angle);
+
+                    if (orb
