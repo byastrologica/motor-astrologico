@@ -20,16 +20,17 @@ app.use(cors());
 // Configura o caminho para os arquivos de efemérides da Swiss Ephemeris
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
-// Configura o provedor de Geocoding (com User-Agent para seguir a política do OSM)
+// =================================================================
+// NOVA CONFIGURAÇÃO DO GEOCODER USANDO LOCATIONIQ
+// =================================================================
 const geocoder = NodeGeocoder({
-  provider: 'openstreetmap',
-  userAgent: 'Motor Astrologico byAstrologica/1.0'
+  provider: 'locationiq',
+  apiKey: process.env.LOCATIONIQ_API_KEY // <-- BUSCA A NOVA CHAVE DE API
 });
 
 // =================================================================
-// ROTA DE AUTOCOMPLETE DE CIDADES
+// ROTA DE AUTOCOMPLETE DE CIDADES (SEM ALTERAÇÃO)
 // =================================================================
-
 async function buscarCidade(textoDigitado) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY; 
     
@@ -37,13 +38,10 @@ async function buscarCidade(textoDigitado) {
         console.error("Chave de API da Geoapify não encontrada.");
         throw new Error("Configuração do servidor incompleta.");
     }
-
     const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(textoDigitado)}&lang=pt&limit=5&type=city&format=json&apiKey=${CHAVE_API}`;
-
     try {
         const response = await axios.get(url);
         const dados = response.data;
-
         let resultadosLimpos = [];
         if (dados.results) {
             resultadosLimpos = dados.results.map(resultado => ({
@@ -59,14 +57,11 @@ async function buscarCidade(textoDigitado) {
         throw new Error("Erro ao comunicar com o serviço de geolocalização.");
     }
 }
-
 app.get('/api/cidades', async (req, res) => {
     const { busca } = req.query;
-
     if (!busca || busca.trim().length < 2) {
         return res.status(400).json({ error: 'Parâmetro "busca" é obrigatório e deve ter ao menos 2 caracteres.' });
     }
-
     try {
         const resultados = await buscarCidade(busca);
         res.status(200).json(resultados);
@@ -77,7 +72,7 @@ app.get('/api/cidades', async (req, res) => {
 
 
 // =================================================================
-// ROTA PRINCIPAL DE CÁLCULO DO MAPA
+// ROTA PRINCIPAL DE CÁLCULO DO MAPA (SEM ALTERAÇÃO NA LÓGICA)
 // =================================================================
 app.post('/calculate', async (req, res) => {
     try {
