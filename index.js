@@ -20,9 +20,10 @@ app.use(cors());
 // Configura o caminho para os arquivos de efemérides da Swiss Ephemeris
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
-// Configura o provedor de Geocoding (usando OpenStreetMap, que é gratuito)
+// Configura o provedor de Geocoding (com User-Agent para seguir a política do OSM)
 const geocoder = NodeGeocoder({
-  provider: 'openstreetmap'
+  provider: 'openstreetmap',
+  userAgent: 'Motor Astrologico byAstrologica/1.0' // <-- MUDANÇA IMPORTANTE AQUI
 });
 
 // =================================================================
