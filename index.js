@@ -20,16 +20,14 @@ app.use(cors());
 // Configura o caminho para os arquivos de efemérides da Swiss Ephemeris
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
-// =================================================================
-// NOVA CONFIGURAÇÃO DO GEOCODER USANDO LOCATIONIQ
-// =================================================================
+// Configura o provedor de Geocoding usando LocationIQ
 const geocoder = NodeGeocoder({
   provider: 'locationiq',
-  apiKey: process.env.LOCATIONIQ_API_KEY // <-- BUSCA A NOVA CHAVE DE API
+  apiKey: process.env.LOCATIONIQ_API_KEY 
 });
 
 // =================================================================
-// ROTA DE AUTOCOMPLETE DE CIDADES (SEM ALTERAÇÃO)
+// ROTA DE AUTOCOMPLETE DE CIDADES
 // =================================================================
 async function buscarCidade(textoDigitado) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY; 
@@ -72,7 +70,7 @@ app.get('/api/cidades', async (req, res) => {
 
 
 // =================================================================
-// ROTA PRINCIPAL DE CÁLCULO DO MAPA (SEM ALTERAÇÃO NA LÓGICA)
+// ROTA PRINCIPAL DE CÁLCULO DO MAPA
 // =================================================================
 app.post('/calculate', async (req, res) => {
     try {
@@ -91,6 +89,32 @@ app.post('/calculate', async (req, res) => {
         
         const jd_ut_obj = await sweph.utc_to_jd(year, month, day, hour, 0, 0, 1);
         const julianDay = jd_ut_obj.data[0];
+
+        // ======================================================
+        // CÁLCULO DAS CASAS E ASCENDENTE (NOVA SEÇÃO)
+        // ======================================================
+        const houseSystem = 'P'; // P para Placidus
+        const housesResult = await sweph.houses(julianDay, lat, lon, houseSystem);
+        
+        const calculatedHouses = {
+            ascendant: housesResult.ascmc[0],
+            mc: housesResult.ascmc[1],
+            cusps: {
+                1: housesResult.cusps[0], // Casa 1 (Ascendente)
+                2: housesResult.cusps[1],
+                3: housesResult.cusps[2],
+                4: housesResult.cusps[3],
+                5: housesResult.cusps[4],
+                6: housesResult.cusps[5],
+                7: housesResult.cusps[6],
+                8: housesResult.cusps[7],
+                9: housesResult.cusps[8],
+                10: housesResult.cusps[9], // Casa 10 (Meio do Céu)
+                11: housesResult.cusps[10],
+                12: housesResult.cusps[11]
+            }
+        };
+        // ======================================================
 
         const planetsToCalc = [
             { id: SE_SUN, name: 'sun' }, { id: SE_MOON, name: 'moon' },
@@ -149,7 +173,8 @@ app.post('/calculate', async (req, res) => {
         }
 
         const responseData = {
-            message: "Cálculo planetário e de aspectos realizado com sucesso!",
+            message: "Cálculo completo do mapa astral realizado com sucesso!",
+            houses: calculatedHouses, // <-- NOVA INFORMAÇÃO AQUI
             planets: calculatedPlanets,
             aspects: foundAspects
         };
