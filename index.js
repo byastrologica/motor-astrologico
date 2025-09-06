@@ -27,10 +27,9 @@ const geocoder = NodeGeocoder({
 });
 
 // =================================================================
-// ROTA DE AUTOCOMPLETE DE CIDADES (NOVO)
+// ROTA DE AUTOCOMPLETE DE CIDADES
 // =================================================================
 
-// Função auxiliar para chamar a API da Geoapify
 async function buscarCidade(textoDigitado) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY; 
     
@@ -61,7 +60,6 @@ async function buscarCidade(textoDigitado) {
     }
 }
 
-// Endpoint GET para o frontend consumir
 app.get('/api/cidades', async (req, res) => {
     const { busca } = req.query;
 
@@ -79,7 +77,7 @@ app.get('/api/cidades', async (req, res) => {
 
 
 // =================================================================
-// ROTA PRINCIPAL DE CÁLCULO DO MAPA (ATUALIZADO)
+// ROTA PRINCIPAL DE CÁLCULO DO MAPA
 // =================================================================
 app.post('/calculate', async (req, res) => {
     try {
@@ -89,7 +87,6 @@ app.post('/calculate', async (req, res) => {
             return res.status(400).json({ error: 'Dados de entrada incompletos. São necessários: year, month, day, hour, locationString.' });
         }
 
-        // Geocodificação do local
         const geoResult = await geocoder.geocode(locationString);
         if (!geoResult || geoResult.length === 0) {
             return res.status(400).json({ error: `Localização "${locationString}" não encontrada.` });
@@ -97,7 +94,6 @@ app.post('/calculate', async (req, res) => {
         const lat = geoResult[0].latitude;
         const lon = geoResult[0].longitude;
         
-        // Início do cálculo astrológico
         const jd_ut_obj = await sweph.utc_to_jd(year, month, day, hour, 0, 0, 1);
         const julianDay = jd_ut_obj.data[0];
 
@@ -138,16 +134,13 @@ app.post('/calculate', async (req, res) => {
             for (let j = i + 1; j < planetPoints.length; j++) {
                 const planet1 = planetPoints[i];
                 const planet2 = planetPoints[j];
-
                 let distance = Math.abs(planet1.longitude - planet2.longitude);
                 if (distance > 180) {
                     distance = 360 - distance;
                 }
-
                 for (const aspectName in aspectsConfig) {
                     const aspect = aspectsConfig[aspectName];
                     const orb = Math.abs(distance - aspect.angle);
-
                     if (orb <= aspect.orb) {
                         foundAspects.push({
                             point1: planet1.name,
