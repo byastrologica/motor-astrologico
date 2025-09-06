@@ -4,7 +4,7 @@
 require('dotenv').config(); // Carrega as variáveis de ambiente do arquivo .env
 const express = require('express');
 const cors = require('cors');
-const sweph = 'require('sweph');
+const sweph = require('sweph');
 const axios = require('axios');
 const NodeGeocoder = require('node-geocoder');
 const {
@@ -23,7 +23,7 @@ sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 // Configura o provedor de Geocoding (com User-Agent para seguir a política do OSM)
 const geocoder = NodeGeocoder({
   provider: 'openstreetmap',
-  userAgent: 'Motor Astrologico byAstrologica/1.0' // <-- MUDANÇA IMPORTANTE AQUI
+  userAgent: 'Motor Astrologico byAstrologica/1.0'
 });
 
 // =================================================================
