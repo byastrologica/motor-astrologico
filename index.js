@@ -91,16 +91,21 @@ app.post('/calculate', async (req, res) => {
         const julianDay = jd_ut_obj.data[0];
 
         // ======================================================
-        // CÁLCULO DAS CASAS E ASCENDENTE (NOVA SEÇÃO)
+        // CÁLCULO DAS CASAS E ASCENDENTE (SEÇÃO CORRIGIDA)
         // ======================================================
         const houseSystem = 'P'; // P para Placidus
         const housesResult = await sweph.houses(julianDay, lat, lon, houseSystem);
+        
+        // VERIFICAÇÃO DE SEGURANÇA para evitar o erro 'reading 0 of undefined'
+        if (!housesResult || !housesResult.ascmc || !housesResult.cusps) {
+            throw new Error("Não foi possível calcular as casas astrológicas para esta data/local.");
+        }
         
         const calculatedHouses = {
             ascendant: housesResult.ascmc[0],
             mc: housesResult.ascmc[1],
             cusps: {
-                1: housesResult.cusps[0], // Casa 1 (Ascendente)
+                1: housesResult.cusps[0],
                 2: housesResult.cusps[1],
                 3: housesResult.cusps[2],
                 4: housesResult.cusps[3],
@@ -109,7 +114,7 @@ app.post('/calculate', async (req, res) => {
                 7: housesResult.cusps[6],
                 8: housesResult.cusps[7],
                 9: housesResult.cusps[8],
-                10: housesResult.cusps[9], // Casa 10 (Meio do Céu)
+                10: housesResult.cusps[9],
                 11: housesResult.cusps[10],
                 12: housesResult.cusps[11]
             }
@@ -174,7 +179,7 @@ app.post('/calculate', async (req, res) => {
 
         const responseData = {
             message: "Cálculo completo do mapa astral realizado com sucesso!",
-            houses: calculatedHouses, // <-- NOVA INFORMAÇÃO AQUI
+            houses: calculatedHouses,
             planets: calculatedPlanets,
             aspects: foundAspects
         };
