@@ -7,7 +7,7 @@ const cors = require('cors');
 const sweph = require('sweph');
 const axios = require('axios');
 const NodeGeocoder = require('node-geocoder');
-const moment = require('moment-timezone'); // <-- IMPORTANTE: NOVA BIBLIOTECA EM USO
+const moment = require('moment-timezone');
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
     SE_URANUS, SE_NEPTUNE, SE_PLUTO, SE_TRUE_NODE, SEFLG_SPEED
@@ -30,7 +30,6 @@ const geocoder = NodeGeocoder({
 // =================================================================
 // ROTA DE AUTOCOMPLETE DE CIDADES
 // =================================================================
-// ... (esta seção não muda e foi omitida por brevidade, o código completo está abaixo)
 async function buscarCidade(textoDigitado) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY; 
     if (!CHAVE_API) { throw new Error("Configuração do servidor incompleta."); }
@@ -44,7 +43,7 @@ async function buscarCidade(textoDigitado) {
                 nome_formatado: resultado.formatted,
                 latitude: resultado.lat,
                 longitude: resultado.lon,
-                fuso_horario: resultado.timezone.name
+                fuso_horario: resultado.timezone.name // Geoapify fornece fuso horário aqui
             }));
         }
         return resultadosLimpos;
@@ -61,7 +60,7 @@ app.get('/api/cidades', async (req, res) => {
 
 
 // =================================================================
-// ROTA PRINCIPAL DE CÁLCULO DO MAPA (COM AJUSTE DE FUSO HORÁRIO)
+// ROTA PRINCIPAL DE CÁLCULO DO MAPA (COM DETECÇÃO DE FUSO HORÁRIO)
 // =================================================================
 app.post('/calculate', async (req, res) => {
     try {
@@ -72,31 +71,29 @@ app.post('/calculate', async (req, res) => {
         }
 
         const geoResult = await geocoder.geocode(locationString);
-        if (!geoResult || !geoResult[0] || !geoResult[0].extra || !geoResult[0].extra.timezone) {
-            // LocationIQ retorna o timezone no campo 'extra'
-            return res.status(400).json({ error: `Não foi possível encontrar o fuso horário para "${locationString}".` });
+        if (!geoResult || geoResult.length === 0) {
+            return res.status(400).json({ error: `Não foi possível encontrar as coordenadas para "${locationString}".` });
         }
         const lat = geoResult[0].latitude;
         const lon = geoResult[0].longitude;
-        const timezone = geoResult[0].extra.timezone; // Ex: "America/Sao_Paulo"
 
         // ======================================================
-        // CONVERSÃO PRECISA PARA UTC (NOVA SEÇÃO)
+        // NOVA LÓGICA PARA DETECÇÃO DE FUSO HORÁRIO
         // ======================================================
-        // 1. Criar a data/hora local usando o fuso horário encontrado
+        const timezone = moment.tz.guess(lat, lon);
+        if (!timezone) {
+            return res.status(400).json({ error: `Não foi possível determinar o fuso horário para as coordenadas ${lat}, ${lon}.` });
+        }
+        // ======================================================
+
         const birthTimeLocal = moment.tz({ year, month: month - 1, day, hour }, timezone);
-
-        // 2. Converter para UTC
         const birthTimeUtc = birthTimeLocal.clone().utc();
 
-        // 3. Extrair os componentes da data/hora UTC para a Swiss Ephemeris
         const utcYear = birthTimeUtc.year();
-        const utcMonth = birthTimeUtc.month() + 1; // moment months são 0-11
+        const utcMonth = birthTimeUtc.month() + 1;
         const utcDay = birthTimeUtc.date();
         const utcHour = birthTimeUtc.hour() + (birthTimeUtc.minute() / 60) + (birthTimeUtc.second() / 3600);
-        // ======================================================
-
-        // Usar os novos dados UTC para o cálculo do Dia Juliano
+        
         const jd_ut_obj = await sweph.utc_to_jd(utcYear, utcMonth, utcDay, utcHour, 0, 0, 1);
         const julianDay = jd_ut_obj.data[0];
 
