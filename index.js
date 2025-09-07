@@ -85,9 +85,6 @@ app.post('/calculate', async (req, res) => {
                 10: housesResult.data.houses[9], 11: housesResult.data.houses[10], 12: housesResult.data.houses[11]
             }
         };
-
-        const deltaT_obj = await sweph.deltat(julianDayUT);
-        const julianDayET = julianDayUT + deltaT_obj.data;
         
         const planetsToCalc = [
             { id: SE_SUN, name: 'sun' }, { id: SE_MOON, name: 'moon' },
@@ -100,7 +97,8 @@ app.post('/calculate', async (req, res) => {
 
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
-            const position = await sweph.calc(julianDayET, planet.id, SEFLG_SPEED);
+            // Revertendo para sweph.calc_ut, que funciona corretamente para os planetas
+            const position = await sweph.calc_ut(julianDayUT, planet.id, SEFLG_SPEED);
             calculatedPlanets[planet.name] = { longitude: position.data[0], latitude: position.data[1], speed: position.data[3] };
         }
 
@@ -142,7 +140,7 @@ app.post('/calculate', async (req, res) => {
 // INICIALIZAÇÃO DO SERVIDOR
 // =================================================================
 app.get('/', (req, res) => {
-    res.send('Servidor astrológico no ar. Use o endpoint POST /calculate.');
+    res.send('Servidor astrológico no ar. Use o endpoint POST /calculate para cálculos e GET /api/cidades para autocomplete.');
 });
 
 app.listen(PORT, () => {
