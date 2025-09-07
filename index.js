@@ -20,7 +20,9 @@ app.use(cors());
 // Configura o caminho para os arquivos de efemérides da Swiss Ephemeris
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
+// =================================================================
 // FUNÇÕES AUXILIARES DA GEOAPIFY
+// =================================================================
 async function geocodeLocation(locationString) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY;
     if (!CHAVE_API) { throw new Error("Chave de API da Geoapify não configurada."); }
@@ -64,8 +66,6 @@ async function buscarCidade(textoDigitado) {
 // =================================================================
 // ENDPOINTS DA API
 // =================================================================
-
-// Endpoint de Autocomplete
 app.get('/api/cidades', async (req, res) => {
     const { busca } = req.query;
     if (!busca || busca.trim().length < 2) { return res.status(400).json({ error: 'Parâmetro "busca" é obrigatório e deve ter ao menos 2 caracteres.' }); }
@@ -75,7 +75,6 @@ app.get('/api/cidades', async (req, res) => {
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// Endpoint Principal de Cálculo
 app.post('/calculate', async (req, res) => {
     try {
         const { year, month, day, hour, locationString, latitude, longitude, utcOffset } = req.body;
@@ -103,13 +102,17 @@ app.post('/calculate', async (req, res) => {
         const hourFloat = parseFloat(hour);
 
         if (utcOffset !== undefined && utcOffset !== null) {
+            // LÓGICA DE PRECISÃO CORRIGIDA
             const hours = Math.floor(hourFloat);
             const minutes = Math.round((hourFloat - hours) * 60);
             
-            const localTime = moment.utc({ year, month: month - 1, day, hour: hours, minute: minutes });
-            localTime.subtract(utcOffset, 'hours');
-            birthTimeUtc = localTime;
+            // Cria a data/hora local a partir dos componentes
+            const localTime = moment({ year, month: month - 1, day, hour: hours, minute: minutes });
+            // Clona, converte para UTC e DEPOIS aplica o offset
+            birthTimeUtc = localTime.clone().utc().subtract(utcOffset, 'hours');
+
         } else {
+            // Detecção automática
             if (!timezone) {
                 timezone = moment.tz.guess(lat, lon);
             }
