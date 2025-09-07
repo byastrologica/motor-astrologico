@@ -79,9 +79,16 @@ app.post('/calculate', async (req, res) => {
     try {
         const { year, month, day, hour, locationString, latitude, longitude, utcOffset } = req.body;
 
-        if (year == null || month == null || day == null || hour == null || (!locationString && (latitude == null || longitude == null))) {
-            return res.status(400).json({ error: 'Dados de entrada incompletos. Forneça locationString ou latitude/longitude.' });
+        // ======================================================
+        // LÓGICA DE VALIDAÇÃO CORRIGIDA
+        // ======================================================
+        if (!year || !month || !day || !hour) {
+            return res.status(400).json({ error: 'Dados de data/hora incompletos.' });
         }
+        if (!locationString && (latitude === undefined || longitude === undefined)) {
+            return res.status(400).json({ error: 'Dados de localização incompletos. Forneça locationString ou latitude/longitude.' });
+        }
+        // ======================================================
 
         let lat, lon, timezone;
 
@@ -105,13 +112,10 @@ app.post('/calculate', async (req, res) => {
         let birthTimeUtc;
 
         if (utcOffset !== undefined && utcOffset !== null) {
-            // LÓGICA DE PRECISÃO FINAL
             const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
             const offsetString = utcOffset >= 0 ? `+${String(Math.abs(utcOffset)).padStart(2, '0')}:00` : `-${String(Math.abs(utcOffset)).padStart(2, '0')}:00`;
             birthTimeUtc = moment(dateString + offsetString).utc();
-
         } else {
-            // Detecção automática
             if (!timezone) {
                 timezone = moment.tz.guess(lat, lon);
             }
