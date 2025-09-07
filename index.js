@@ -23,13 +23,10 @@ sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 // =================================================================
 // FUNÇÕES AUXILIARES DA GEOAPIFY
 // =================================================================
-
 async function geocodeLocation(locationString) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY;
     if (!CHAVE_API) { throw new Error("Chave de API da Geoapify não configurada."); }
-    
     const url = `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(locationString)}&lang=pt&limit=1&format=json&apiKey=${CHAVE_API}`;
-    
     try {
         const response = await axios.get(url);
         if (response.data.results && response.data.results.length > 0) {
@@ -46,7 +43,6 @@ async function geocodeLocation(locationString) {
         throw new Error("Erro ao comunicar com o serviço de geocodificação.");
     }
 }
-
 async function buscarCidade(textoDigitado) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY; 
     if (!CHAVE_API) { throw new Error("Configuração do servidor incompleta."); }
@@ -70,7 +66,6 @@ async function buscarCidade(textoDigitado) {
 // =================================================================
 // ENDPOINTS DA API
 // =================================================================
-
 app.get('/api/cidades', async (req, res) => {
     const { busca } = req.query;
     if (!busca || busca.trim().length < 2) { return res.status(400).json({ error: 'Parâmetro "busca" é obrigatório e deve ter ao menos 2 caracteres.' }); }
@@ -110,10 +105,13 @@ app.post('/calculate', async (req, res) => {
         let birthTimeUtc;
 
         if (utcOffset !== undefined && utcOffset !== null) {
-            const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
-            const offsetInMinutes = utcOffset * 60;
-            birthTimeUtc = moment(dateString).utcOffset(offsetInMinutes, true).utc();
+            // LÓGICA DE PRECISÃO CORRIGIDA (v4)
+            const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+            const offsetString = utcOffset >= 0 ? `+${String(Math.abs(utcOffset)).padStart(2, '0')}:00` : `-${String(Math.abs(utcOffset)).padStart(2, '0')}:00`;
+            birthTimeUtc = moment(dateString + offsetString).utc();
+
         } else {
+            // Detecção automática
             if (!timezone) {
                 timezone = moment.tz.guess(lat, lon);
             }
