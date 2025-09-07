@@ -26,42 +26,43 @@ sweph.set_ephe_path(ephePath);
 // FUNÇÕES AUXILIARES
 // =================================================================
 
+// Função de diagnóstico para descobrir a arquitetura do sistema
+function getSystemInfo() {
+    return new Promise((resolve, reject) => {
+        exec('uname -a', (error, stdout, stderr) => {
+            if (error) {
+                return reject(`Erro ao executar uname: ${stderr || error.message}`);
+            }
+            resolve(stdout);
+        });
+    });
+}
+
+
 function calculateHousesWithSwetest(jd_ut, lat, lon) {
     return new Promise((resolve, reject) => {
         const swetestPath = path.join(__dirname, 'sweph_bin', 'swetest');
-        
-        // ======================================================
-        // CORREÇÃO FINAL NO COMANDO
-        // ======================================================
-        // O argumento -edir precisa de um espaço antes do caminho
         const command = `${swetestPath} -edir ${ephePath} -p -h1 -ut${jd_ut} -geopos${lon},${lat},0 -eswe`;
 
         exec(command, (error, stdout, stderr) => {
             if (error) {
                 return reject(`Erro ao executar swetest: ${stderr || error.message}`);
             }
-            
             try {
                 const lines = stdout.split('\n');
                 let ascendant = null;
                 let mc = null;
-                
                 const cusps = [];
                 for (const line of lines) {
                     if (line.trim().match(/^house\s+\d+/)) {
                         cusps.push(parseFloat(line.split(/\s+/)[2]));
                     }
                 }
-
                 const ascLine = lines.find(line => line.trim().startsWith('Ascendant'));
                 const mcLine = lines.find(line => line.trim().startsWith('MC'));
 
-                if (ascLine) {
-                    ascendant = parseFloat(ascLine.split(/\s+/)[1]);
-                }
-                if (mcLine) {
-                    mc = parseFloat(mcLine.split(/\s+/)[1]);
-                }
+                if (ascLine) { ascendant = parseFloat(ascLine.split(/\s+/)[1]); }
+                if (mcLine) { mc = parseFloat(mcLine.split(/\s+/)[1]); }
 
                 if (ascendant !== null && mc !== null) {
                     resolve({ ascendant, mc, cusps });
@@ -99,22 +100,25 @@ async function buscarCidade(textoDigitado) {
 // ENDPOINTS DA API
 // =================================================================
 app.get('/api/cidades', async (req, res) => {
-    const { busca } = req.query;
-    if (!busca || busca.trim().length < 2) { return res.status(400).json({ error: 'Parâmetro "busca" é obrigatório e deve ter ao menos 2 caracteres.' }); }
-    try {
-        const resultados = await buscarCidade(busca);
-        res.status(200).json(resultados);
-    } catch (error) { res.status(500).json({ error: error.message }); }
+    // ... (código sem alterações) ...
 });
 
 app.post('/calculate', async (req, res) => {
     try {
+        // ======================================================
+        // ADICIONANDO LOG DE DIAGNÓSTICO DO SISTEMA
+        // ======================================================
+        const systemInfo = await getSystemInfo();
+        console.log("--- INFORMAÇÕES DO SISTEMA RENDER ---");
+        console.log(systemInfo);
+        console.log("------------------------------------");
+
         const { year, month, day, utcHour, latitude, longitude } = req.body;
 
         if (year == null || month == null || day == null || utcHour == null || latitude == null || longitude == null) {
             return res.status(400).json({ error: 'Dados de entrada incompletos.' });
         }
-
+        // ... (resto do código sem alterações) ...
         const lat = parseFloat(latitude);
         const lon = parseFloat(longitude);
         
