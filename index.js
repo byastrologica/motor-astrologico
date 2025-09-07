@@ -77,7 +77,6 @@ app.get('/api/cidades', async (req, res) => {
 
 app.post('/calculate', async (req, res) => {
     try {
-        // Aceita latitude e longitude opcionais
         const { year, month, day, hour, locationString, latitude, longitude, utcOffset } = req.body;
 
         if (year == null || month == null || day == null || hour == null || (!locationString && (latitude == null || longitude == null))) {
@@ -87,11 +86,9 @@ app.post('/calculate', async (req, res) => {
         let lat, lon, timezone;
 
         if (latitude !== undefined && longitude !== undefined) {
-            console.log("Usando coordenadas manuais.");
             lat = parseFloat(latitude);
             lon = parseFloat(longitude);
         } else {
-            console.log("Buscando coordenadas via Geoapify.");
             const geoResult = await geocodeLocation(locationString);
             if (!geoResult) {
                 return res.status(400).json({ error: `Não foi possível encontrar coordenadas para "${locationString}".` });
@@ -102,20 +99,22 @@ app.post('/calculate', async (req, res) => {
         }
         
         let birthTimeUtc;
+        const hourFloat = parseFloat(hour);
 
         if (utcOffset !== undefined && utcOffset !== null) {
-            console.log(`Usando offset manual: ${utcOffset}`);
-            const hourFloat = parseFloat(hour);
-            const utcHourValue = hourFloat - utcOffset;
-            birthTimeUtc = moment.utc({ year, month: month - 1, day }).add(utcHourValue, 'hours');
+            // MÉTODO 1: Offset manual com tratamento correto da hora decimal
+            const hours = Math.floor(hourFloat);
+            const minutes = Math.round((hourFloat - hours) * 60);
+            
+            const localTime = moment.utc({ year, month: month - 1, day, hour: hours, minute: minutes });
+            localTime.subtract(utcOffset, 'hours');
+            birthTimeUtc = localTime;
         } else {
+            // MÉTODO 2: Detecção automática
             if (!timezone) {
-                // Se as coordenadas foram manuais, precisamos adivinhar o fuso
                 timezone = moment.tz.guess(lat, lon);
-                console.log(`Fuso horário adivinhado para coordenadas manuais: ${timezone}`);
             }
-            console.log(`Detectando fuso horário automaticamente: ${timezone}`);
-            const birthTimeLocal = moment.tz({ year, month: month - 1, day, hour }, timezone);
+            const birthTimeLocal = moment.tz({ year, month: month - 1, day, hour: hourFloat }, timezone);
             birthTimeUtc = birthTimeLocal.clone().utc();
         }
 
