@@ -83,7 +83,7 @@ app.post('/calculate', async (req, res) => {
             return res.status(400).json({ error: 'Dados de entrada incompletos. Forneça locationString ou latitude/longitude.' });
         }
 
-        let lat, lon;
+        let lat, lon, timezone;
 
         if (latitude !== undefined && longitude !== undefined) {
             lat = parseFloat(latitude);
@@ -95,23 +95,34 @@ app.post('/calculate', async (req, res) => {
             }
             lat = geoResult.latitude;
             lon = geoResult.longitude;
+            timezone = geoResult.timezone;
         }
         
-        // --- LÓGICA DE CONVERSÃO DE TEMPO CORRIGIDA E SIMPLIFICADA ---
+        // --- LÓGICA DE CONVERSÃO DE TEMPO CORRIGIDA E FINAL ---
         const hourFloat = parseFloat(hour);
-        const offset = (utcOffset !== undefined && utcOffset !== null) ? parseFloat(utcOffset) : 0;
-        
-        // Calcula a hora UTC diretamente
-        const utcHourFloat = hourFloat - offset;
+        const hours = Math.floor(hourFloat);
+        const minutes = Math.round((hourFloat - hours) * 60);
 
-        // Usa o objeto Date do JavaScript para lidar com o rollover de dias
-        const date = new Date(Date.UTC(year, month - 1, day));
-        date.setUTCHours(utcHourFloat * 1000 * 3600 / 1000); // Converte horas para milissegundos e define
-        
-        const utcYear = date.getUTCFullYear();
-        const utcMonth = date.getUTCMonth() + 1;
-        const utcDay = date.getUTCDate();
-        const utcHour = date.getUTCHours() + (date.getUTCMinutes() / 60) + (date.getUTCSeconds() / 3600);
+        let birthTimeUtc;
+
+        if (utcOffset !== undefined && utcOffset !== null) {
+            // Cria um objeto de data com os componentes da hora local
+            const localTime = moment({ year, month: month - 1, day, hour: hours, minute: minutes });
+            // Converte para UTC subtraindo o offset (ex: 5h - (-3) = 8h UTC)
+            birthTimeUtc = localTime.clone().utc().subtract(utcOffset, 'hours');
+        } else {
+            // Detecção automática via timezone
+            if (!timezone) {
+                timezone = moment.tz.guess(lat, lon);
+            }
+            const birthTimeLocal = moment.tz({ year, month: month - 1, day, hour: hours, minute: minutes }, timezone);
+            birthTimeUtc = birthTimeLocal.clone().utc();
+        }
+
+        const utcYear = birthTimeUtc.year();
+        const utcMonth = birthTimeUtc.month() + 1;
+        const utcDay = birthTimeUtc.date();
+        const utcHour = birthTimeUtc.hour() + (birthTimeUtc.minute() / 60) + (birthTimeUtc.second() / 3600);
         // --- FIM DA LÓGICA DE CONVERSÃO ---
         
         const jd_ut_obj = await sweph.utc_to_jd(utcYear, utcMonth, utcDay, utcHour, 0, 0, 1);
@@ -144,9 +155,11 @@ app.post('/calculate', async (req, res) => {
             { id: SE_TRUE_NODE, name: 'north_node' }
         ];
 
+        // Usar a função swe_calc_ut que considera o tempo universal para os planetas
+        const sweFlags = SEFLG_SPEED;
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
-            const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
+            const position = await sweph.calc_ut(julianDay, planet.id, sweFlags);
             calculatedPlanets[planet.name] = { longitude: position.data[0], latitude: position.data[1], speed: position.data[3] };
         }
 
