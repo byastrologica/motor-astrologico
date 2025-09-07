@@ -102,15 +102,16 @@ app.post('/calculate', async (req, res) => {
         const hourFloat = parseFloat(hour);
 
         if (utcOffset !== undefined && utcOffset !== null) {
-            // MÉTODO 1: Offset manual com tratamento correto da hora decimal
+            // LÓGICA DE PRECISÃO CORRIGIDA PARA HORA DECIMAL
             const hours = Math.floor(hourFloat);
             const minutes = Math.round((hourFloat - hours) * 60);
             
-            const localTime = moment.utc({ year, month: month - 1, day, hour: hours, minute: minutes });
-            localTime.subtract(utcOffset, 'hours');
-            birthTimeUtc = localTime;
+            // Cria a data/hora local a partir dos componentes
+            const localTime = moment({ year, month: month - 1, day, hour: hours, minute: minutes });
+            // Aplica o offset para encontrar a hora UTC correta
+            birthTimeUtc = localTime.clone().utc().subtract(utcOffset, 'hours');
+
         } else {
-            // MÉTODO 2: Detecção automática
             if (!timezone) {
                 timezone = moment.tz.guess(lat, lon);
             }
