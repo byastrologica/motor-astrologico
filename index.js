@@ -4,74 +4,24 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { exec } = require('child_process');
-const path = require('path');
+const sweph = require('sweph');
 const axios = require('axios');
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
     SE_URANUS, SE_NEPTUNE, SE_PLUTO, SE_TRUE_NODE, SEFLG_SPEED
 } = require('./constants');
 
-const sweph = require('sweph'); 
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(cors());
 
-const ephePath = path.join(__dirname, 'sweph_bin', 'ephe');
-sweph.set_ephe_path(ephePath);
+// Configura o caminho para os arquivos de efemérides da biblioteca sweph
+sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
 // =================================================================
-// FUNÇÕES AUXILIARES
+// FUNÇÃO AUXILIAR DA GEOAPIFY (PARA AUTOCOMPLETE)
 // =================================================================
-
-function calculateHousesWithSwetest(jd_ut, lat, lon) {
-    return new Promise((resolve, reject) => {
-        const swetestPath = path.join(__dirname, 'sweph_bin', 'swetest');
-        const command = `${swetestPath} -edir${ephePath} -p -h1 -ut${jd_ut} -geopos${lon},${lat},0 -eswe`;
-
-        exec(command, (error, stdout, stderr) => {
-            // LOG DE DEPURAÇÃO FINAL
-            console.log("--- DIAGNÓSTICO FINAL DE EXECUÇÃO ---");
-            console.log("Comando:", command);
-            console.log("Saída Padrão (stdout):", stdout);
-            console.log("Saída de Erro (stderr):", stderr);
-            if (error) console.log("Objeto de Erro:", error);
-            console.log("------------------------------------");
-
-            if (error || stderr) {
-                return reject(`Erro ao executar swetest: ${stderr || error.message}`);
-            }
-            
-            try {
-                const lines = stdout.split('\n');
-                let ascendant = null;
-                let mc = null;
-                const cusps = [];
-                for (const line of lines) {
-                    if (line.trim().match(/^house\s+\d+/)) {
-                        cusps.push(parseFloat(line.split(/\s+/)[2]));
-                    }
-                }
-                const ascLine = lines.find(line => line.trim().startsWith('Ascendant'));
-                const mcLine = lines.find(line => line.trim().startsWith('MC'));
-
-                if (ascLine) { ascendant = parseFloat(ascLine.split(/\s+/)[1]); }
-                if (mcLine) { mc = parseFloat(mcLine.split(/\s+/)[1]); }
-
-                if (ascendant !== null && mc !== null) {
-                    resolve({ ascendant, mc, cusps });
-                } else {
-                    reject("Não foi possível extrair Ascendente/MC da saída do swetest. Saída recebida: " + stdout);
-                }
-            } catch (parseError) {
-                reject(`Erro ao processar saída do swetest: ${parseError}`);
-            }
-        });
-    });
-}
-
 async function buscarCidade(textoDigitado) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY; 
     if (!CHAVE_API) { throw new Error("Configuração do servidor incompleta."); }
@@ -109,7 +59,7 @@ app.post('/calculate', async (req, res) => {
         const { year, month, day, utcHour, latitude, longitude } = req.body;
 
         if (year == null || month == null || day == null || utcHour == null || latitude == null || longitude == null) {
-            return res.status(400).json({ error: 'Dados de entrada incompletos.' });
+            return res.status(400).json({ error: 'Dados de entrada incompletos. Forneça year, month, day, utcHour, latitude, longitude.' });
         }
 
         const lat = parseFloat(latitude);
@@ -118,21 +68,23 @@ app.post('/calculate', async (req, res) => {
         const jd_ut_obj = await sweph.utc_to_jd(year, month, day, parseFloat(utcHour), 0, 0, 1);
         const julianDayUT = jd_ut_obj.data[0];
 
-        const housesResult = await calculateHousesWithSwetest(julianDayUT, lat, lon);
+        const houseSystem = 'P';
+        const housesResult = await sweph.houses(julianDayUT, lat, lon, houseSystem);
+        
+        if (!housesResult || !housesResult.data || !housesResult.data.houses || !housesResult.data.points) {
+            throw new Error("Não foi possível calcular as casas astrológicas para esta data/local.");
+        }
         
         const calculatedHouses = {
-            ascendant: housesResult.ascendant,
-            mc: housesResult.mc,
+            ascendant: housesResult.data.points[0],
+            mc: housesResult.data.points[1],
             cusps: {
-                1: housesResult.cusps[0], 2: housesResult.cusps[1], 3: housesResult.cusps[2],
-                4: housesResult.cusps[3], 5: housesResult.cusps[4], 6: housesResult.cusps[5],
-                7: housesResult.cusps[6], 8: housesResult.cusps[7], 9: housesResult.cusps[8],
-                10: housesResult.cusps[9], 11: housesResult.cusps[10], 12: housesResult.cusps[11]
+                1: housesResult.data.houses[0], 2: housesResult.data.houses[1], 3: housesResult.data.houses[2],
+                4: housesResult.data.houses[3], 5: housesResult.data.houses[4], 6: housesResult.data.houses[5],
+                7: housesResult.data.houses[6], 8: housesResult.data.houses[7], 9: housesResult.data.houses[8],
+                10: housesResult.data.houses[9], 11: housesResult.data.houses[10], 12: housesResult.data.houses[11]
             }
         };
-
-        const deltaT_obj = await sweph.deltat(julianDayUT);
-        const julianDayET = julianDayUT + deltaT_obj.data;
         
         const planetsToCalc = [
             { id: SE_SUN, name: 'sun' }, { id: SE_MOON, name: 'moon' },
@@ -145,7 +97,7 @@ app.post('/calculate', async (req, res) => {
 
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
-            const position = await sweph.calc(julianDayET, planet.id, SEFLG_SPEED);
+            const position = await sweph.calc_ut(julianDayUT, planet.id, SEFLG_SPEED);
             calculatedPlanets[planet.name] = { longitude: position.data[0], latitude: position.data[1], speed: position.data[3] };
         }
 
