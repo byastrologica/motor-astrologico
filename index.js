@@ -98,7 +98,6 @@ app.post('/calculate', async (req, res) => {
             timezone = geoResult.timezone;
         }
         
-        // --- LÓGICA DE CONVERSÃO DE TEMPO CORRIGIDA E FINAL ---
         const hourFloat = parseFloat(hour);
         const hours = Math.floor(hourFloat);
         const minutes = Math.round((hourFloat - hours) * 60);
@@ -106,12 +105,9 @@ app.post('/calculate', async (req, res) => {
         let birthTimeUtc;
 
         if (utcOffset !== undefined && utcOffset !== null) {
-            // Cria um objeto de data com os componentes da hora local
-            const localTime = moment({ year, month: month - 1, day, hour: hours, minute: minutes });
-            // Converte para UTC subtraindo o offset (ex: 5h - (-3) = 8h UTC)
-            birthTimeUtc = localTime.clone().utc().subtract(utcOffset, 'hours');
+            const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+            birthTimeUtc = moment.utc(dateString).subtract(utcOffset, 'hours');
         } else {
-            // Detecção automática via timezone
             if (!timezone) {
                 timezone = moment.tz.guess(lat, lon);
             }
@@ -123,13 +119,24 @@ app.post('/calculate', async (req, res) => {
         const utcMonth = birthTimeUtc.month() + 1;
         const utcDay = birthTimeUtc.date();
         const utcHour = birthTimeUtc.hour() + (birthTimeUtc.minute() / 60) + (birthTimeUtc.second() / 3600);
-        // --- FIM DA LÓGICA DE CONVERSÃO ---
         
         const jd_ut_obj = await sweph.utc_to_jd(utcYear, utcMonth, utcDay, utcHour, 0, 0, 1);
-        const julianDay = jd_ut_obj.data[0];
+        const julianDayUT = jd_ut_obj.data[0];
 
+        // ======================================================
+        // CÁLCULO E VALIDAÇÃO DO TEMPO SIDERAL
+        // ======================================================
+        const siderealTimeResult = await sweph.sidt(julianDayUT);
+        const greenwichSiderealTime = siderealTimeResult.data; // GST em graus
+        // O Tempo Sideral Local (LST) é o de Greenwich ajustado pela longitude.
+        // A função sweph.houses faz isso internamente, mas vamos logar o GST para validar.
+        console.log("--- VALIDAÇÃO DO TEMPO SIDERAL ---");
+        console.log(`Tempo Sideral em Greenwich (GST): ${greenwichSiderealTime} graus`);
+        console.log("---------------------------------");
+        // ======================================================
+        
         const houseSystem = 'P';
-        const housesResult = await sweph.houses(julianDay, lat, lon, houseSystem);
+        const housesResult = await sweph.houses(julianDayUT, lat, lon, houseSystem);
         
         if (!housesResult || !housesResult.data || !housesResult.data.houses || !housesResult.data.points) {
             throw new Error("Não foi possível calcular as casas astrológicas para esta data/local.");
@@ -146,6 +153,9 @@ app.post('/calculate', async (req, res) => {
             }
         };
 
+        const deltaT = await sweph.get_tjd_ut(julianDayUT);
+        const julianDayET = julianDayUT + deltaT.data;
+        
         const planetsToCalc = [
             { id: SE_SUN, name: 'sun' }, { id: SE_MOON, name: 'moon' },
             { id: SE_MERCURY, name: 'mercury' }, { id: SE_VENUS, name: 'venus' },
@@ -155,11 +165,9 @@ app.post('/calculate', async (req, res) => {
             { id: SE_TRUE_NODE, name: 'north_node' }
         ];
 
-        // Usar a função swe_calc_ut que considera o tempo universal para os planetas
-        const sweFlags = SEFLG_SPEED;
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
-            const position = await sweph.calc_ut(julianDay, planet.id, sweFlags);
+            const position = await sweph.calc(julianDayET, planet.id, SEFLG_SPEED);
             calculatedPlanets[planet.name] = { longitude: position.data[0], latitude: position.data[1], speed: position.data[3] };
         }
 
