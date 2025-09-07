@@ -105,13 +105,10 @@ app.post('/calculate', async (req, res) => {
         let birthTimeUtc;
 
         if (utcOffset !== undefined && utcOffset !== null) {
-            // LÓGICA DE PRECISÃO CORRIGIDA (v4)
             const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
             const offsetString = utcOffset >= 0 ? `+${String(Math.abs(utcOffset)).padStart(2, '0')}:00` : `-${String(Math.abs(utcOffset)).padStart(2, '0')}:00`;
             birthTimeUtc = moment(dateString + offsetString).utc();
-
         } else {
-            // Detecção automática
             if (!timezone) {
                 timezone = moment.tz.guess(lat, lon);
             }
@@ -124,11 +121,23 @@ app.post('/calculate', async (req, res) => {
         const utcDay = birthTimeUtc.date();
         const utcHour = birthTimeUtc.hour() + (birthTimeUtc.minute() / 60) + (birthTimeUtc.second() / 3600);
         
+        // ======================================================
+        // CÁLCULO PRECISO COM DELTA T
+        // ======================================================
+        // 1. Calcular o Dia Juliano em Tempo Universal (UT)
         const jd_ut_obj = await sweph.utc_to_jd(utcYear, utcMonth, utcDay, utcHour, 0, 0, 1);
-        const julianDay = jd_ut_obj.data[0];
+        const julianDayUT = jd_ut_obj.data[0];
+
+        // 2. Obter a correção Delta T para essa data
+        const deltaT = await sweph.get_tjd_ut(julianDayUT);
+        
+        // 3. Calcular o Dia Juliano em Tempo de Efemérides (ET), que é o tempo para os cálculos precisos
+        const julianDayET = julianDayUT + deltaT.data;
+        // ======================================================
 
         const houseSystem = 'P';
-        const housesResult = await sweph.houses(julianDay, lat, lon, houseSystem);
+        // Usar julianDayUT para o cálculo das casas, pois elas são baseadas na rotação da Terra (UT)
+        const housesResult = await sweph.houses(julianDayUT, lat, lon, houseSystem);
         
         if (!housesResult || !housesResult.data || !housesResult.data.houses || !housesResult.data.points) {
             throw new Error("Não foi possível calcular as casas astrológicas para esta data/local.");
@@ -156,7 +165,8 @@ app.post('/calculate', async (req, res) => {
 
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
-            const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
+            // Usar julianDayET para o cálculo dos planetas, que são baseados no tempo orbital (ET)
+            const position = await sweph.calc(julianDayET, planet.id, SEFLG_SPEED);
             calculatedPlanets[planet.name] = { longitude: position.data[0], latitude: position.data[1], speed: position.data[3] };
         }
 
