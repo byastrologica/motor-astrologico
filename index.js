@@ -1,9 +1,11 @@
 // =================================================================
 // DEPENDÊNCIAS E CONFIGURAÇÃO INICIAL
 // =================================================================
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const sweph = require('sweph');
+const axios = require('axios');
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
     SE_URANUS, SE_NEPTUNE, SE_PLUTO, SE_TRUE_NODE, SEFLG_SPEED
@@ -18,8 +20,40 @@ app.use(cors());
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
 // =================================================================
-// ENDPOINT ÚNICO E SIMPLIFICADO
+// FUNÇÃO AUXILIAR DA GEOAPIFY (PARA AUTOCOMPLETE)
 // =================================================================
+async function buscarCidade(textoDigitado) {
+    const CHAVE_API = process.env.GEOAPIFY_API_KEY; 
+    if (!CHAVE_API) { throw new Error("Configuração do servidor incompleta."); }
+    const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(textoDigitado)}&lang=pt&limit=5&type=city&format=json&apiKey=${CHAVE_API}`;
+    try {
+        const response = await axios.get(url);
+        const dados = response.data;
+        let resultadosLimpos = [];
+        if (dados.results) {
+            resultadosLimpos = dados.results.map(resultado => ({
+                nome_formatado: resultado.formatted,
+                latitude: resultado.lat,
+                longitude: resultado.lon,
+                fuso_horario: resultado.timezone.name
+            }));
+        }
+        return resultadosLimpos;
+    } catch (error) { throw new Error("Erro ao comunicar com o serviço de geolocalização."); }
+}
+
+// =================================================================
+// ENDPOINTS DA API
+// =================================================================
+app.get('/api/cidades', async (req, res) => {
+    const { busca } = req.query;
+    if (!busca || busca.trim().length < 2) { return res.status(400).json({ error: 'Parâmetro "busca" é obrigatório e deve ter ao menos 2 caracteres.' }); }
+    try {
+        const resultados = await buscarCidade(busca);
+        res.status(200).json(resultados);
+    } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
 app.post('/calculate', async (req, res) => {
     try {
         const { year, month, day, utcHour, latitude, longitude } = req.body;
