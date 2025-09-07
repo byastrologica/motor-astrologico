@@ -23,14 +23,10 @@ sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 // =================================================================
 // FUNÇÕES AUXILIARES DA GEOAPIFY
 // =================================================================
-
-// Função para geocodificação principal (busca lat, lon e timezone)
 async function geocodeLocation(locationString) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY;
     if (!CHAVE_API) { throw new Error("Chave de API da Geoapify não configurada."); }
-    
     const url = `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(locationString)}&lang=pt&limit=1&format=json&apiKey=${CHAVE_API}`;
-    
     try {
         const response = await axios.get(url);
         if (response.data.results && response.data.results.length > 0) {
@@ -47,8 +43,6 @@ async function geocodeLocation(locationString) {
         throw new Error("Erro ao comunicar com o serviço de geocodificação.");
     }
 }
-
-// Função para autocomplete
 async function buscarCidade(textoDigitado) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY; 
     if (!CHAVE_API) { throw new Error("Configuração do servidor incompleta."); }
@@ -72,8 +66,6 @@ async function buscarCidade(textoDigitado) {
 // =================================================================
 // ENDPOINTS DA API
 // =================================================================
-
-// Endpoint de Autocomplete
 app.get('/api/cidades', async (req, res) => {
     const { busca } = req.query;
     if (!busca || busca.trim().length < 2) { return res.status(400).json({ error: 'Parâmetro "busca" é obrigatório e deve ter ao menos 2 caracteres.' }); }
@@ -83,24 +75,49 @@ app.get('/api/cidades', async (req, res) => {
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// Endpoint Principal de Cálculo
 app.post('/calculate', async (req, res) => {
     try {
-        const { year, month, day, hour, locationString } = req.body;
+        // Aceita latitude e longitude opcionais
+        const { year, month, day, hour, locationString, latitude, longitude, utcOffset } = req.body;
 
-        if (year == null || month == null || day == null || hour == null || !locationString) {
-            return res.status(400).json({ error: 'Dados de entrada incompletos.' });
+        if (year == null || month == null || day == null || hour == null || (!locationString && (latitude == null || longitude == null))) {
+            return res.status(400).json({ error: 'Dados de entrada incompletos. Forneça locationString ou latitude/longitude.' });
         }
 
-        const geoResult = await geocodeLocation(locationString);
-        if (!geoResult) {
-            return res.status(400).json({ error: `Não foi possível encontrar coordenadas e fuso horário para "${locationString}".` });
+        let lat, lon, timezone;
+
+        if (latitude !== undefined && longitude !== undefined) {
+            console.log("Usando coordenadas manuais.");
+            lat = parseFloat(latitude);
+            lon = parseFloat(longitude);
+        } else {
+            console.log("Buscando coordenadas via Geoapify.");
+            const geoResult = await geocodeLocation(locationString);
+            if (!geoResult) {
+                return res.status(400).json({ error: `Não foi possível encontrar coordenadas para "${locationString}".` });
+            }
+            lat = geoResult.latitude;
+            lon = geoResult.longitude;
+            timezone = geoResult.timezone;
         }
         
-        const { latitude: lat, longitude: lon, timezone } = geoResult;
+        let birthTimeUtc;
 
-        const birthTimeLocal = moment.tz({ year, month: month - 1, day, hour }, timezone);
-        const birthTimeUtc = birthTimeLocal.clone().utc();
+        if (utcOffset !== undefined && utcOffset !== null) {
+            console.log(`Usando offset manual: ${utcOffset}`);
+            const hourFloat = parseFloat(hour);
+            const utcHourValue = hourFloat - utcOffset;
+            birthTimeUtc = moment.utc({ year, month: month - 1, day }).add(utcHourValue, 'hours');
+        } else {
+            if (!timezone) {
+                // Se as coordenadas foram manuais, precisamos adivinhar o fuso
+                timezone = moment.tz.guess(lat, lon);
+                console.log(`Fuso horário adivinhado para coordenadas manuais: ${timezone}`);
+            }
+            console.log(`Detectando fuso horário automaticamente: ${timezone}`);
+            const birthTimeLocal = moment.tz({ year, month: month - 1, day, hour }, timezone);
+            birthTimeUtc = birthTimeLocal.clone().utc();
+        }
 
         const utcYear = birthTimeUtc.year();
         const utcMonth = birthTimeUtc.month() + 1;
