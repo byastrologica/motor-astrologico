@@ -2,11 +2,11 @@
 // DEPENDÊNCIAS E CONFIGURAÇÃO INICIAL
 // =================================================================
 require('dotenv').config();
-const express = 'require('express');
+const express = require('express');
 const cors = require('cors');
 const sweph = require('sweph');
 const axios = require('axios');
-const moment = require('moment-timezone'); // Usaremos para a conversão de fuso horário
+const moment = require('moment-timezone');
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
     SE_URANUS, SE_NEPTUNE, SE_PLUTO, SE_TRUE_NODE, SEFLG_SPEED
@@ -164,18 +164,5 @@ app.post('/calculate', async (req, res) => {
             houses: calculatedHouses, planets: calculatedPlanets, aspects: foundAspects
         };
 
-        res.status(200).json(responseData);
-
-    } catch (error) {
-        console.error("Erro no cálculo:", error);
-        res.status(500).json({ error: 'Erro interno ao realizar o cálculo.', details: error.toString() });
-    }
-});
-
-app.get('/', (req, res) => {
-    res.send('Servidor astrológico no ar. Use o endpoint POST /calculate para cálculos e GET /api/cidades para autocomplete.');
-});
-
-app.listen(PORT, () => {
-    console.log(`Servidor rodando na porta ${PORT}`);
-});
+        res.status(2
+                   
