@@ -2,12 +2,11 @@
 // DEPENDÊNCIAS E CONFIGURAÇÃO INICIAL
 // =================================================================
 require('dotenv').config();
-const express = require('express');
+const express = 'require('express');
 const cors = require('cors');
 const sweph = require('sweph');
 const axios = require('axios');
-const NodeGeocoder = require('node-geocoder');
-const moment = require('moment-timezone');
+const moment = require('moment-timezone'); // Usaremos para a conversão de fuso horário
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
     SE_URANUS, SE_NEPTUNE, SE_PLUTO, SE_TRUE_NODE, SEFLG_SPEED
@@ -21,15 +20,35 @@ app.use(cors());
 // Configura o caminho para os arquivos de efemérides da Swiss Ephemeris
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
-// Configura o provedor de Geocoding usando LocationIQ
-const geocoder = NodeGeocoder({
-  provider: 'locationiq',
-  apiKey: process.env.LOCATIONIQ_API_KEY 
-});
+// =================================================================
+// FUNÇÕES AUXILIARES DA GEOAPIFY
+// =================================================================
 
-// =================================================================
-// ROTA DE AUTOCOMPLETE DE CIDADES
-// =================================================================
+// Função para geocodificação principal (busca lat, lon e timezone)
+async function geocodeLocation(locationString) {
+    const CHAVE_API = process.env.GEOAPIFY_API_KEY;
+    if (!CHAVE_API) { throw new Error("Chave de API da Geoapify não configurada."); }
+    
+    const url = `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(locationString)}&lang=pt&limit=1&format=json&apiKey=${CHAVE_API}`;
+    
+    try {
+        const response = await axios.get(url);
+        if (response.data.results && response.data.results.length > 0) {
+            const result = response.data.results[0];
+            return {
+                latitude: result.lat,
+                longitude: result.lon,
+                timezone: result.timezone.name // O fuso horário exato que precisamos
+            };
+        }
+        return null;
+    } catch (error) {
+        console.error("Erro ao geocodificar localização:", error.message);
+        throw new Error("Erro ao comunicar com o serviço de geocodificação.");
+    }
+}
+
+// Função para autocomplete (não muda)
 async function buscarCidade(textoDigitado) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY; 
     if (!CHAVE_API) { throw new Error("Configuração do servidor incompleta."); }
@@ -43,12 +62,17 @@ async function buscarCidade(textoDigitado) {
                 nome_formatado: resultado.formatted,
                 latitude: resultado.lat,
                 longitude: resultado.lon,
-                fuso_horario: resultado.timezone.name // Geoapify fornece fuso horário aqui
+                fuso_horario: resultado.timezone.name
             }));
         }
         return resultadosLimpos;
     } catch (error) { throw new Error("Erro ao comunicar com o serviço de geolocalização."); }
 }
+
+// =================================================================
+// ENDPOINTS DA API
+// =================================================================
+
 app.get('/api/cidades', async (req, res) => {
     const { busca } = req.query;
     if (!busca || busca.trim().length < 2) { return res.status(400).json({ error: 'Parâmetro "busca" é obrigatório e deve ter ao menos 2 caracteres.' }); }
@@ -58,10 +82,6 @@ app.get('/api/cidades', async (req, res) => {
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-
-// =================================================================
-// ROTA PRINCIPAL DE CÁLCULO DO MAPA (COM DETECÇÃO DE FUSO HORÁRIO)
-// =================================================================
 app.post('/calculate', async (req, res) => {
     try {
         const { year, month, day, hour, locationString } = req.body;
@@ -70,22 +90,15 @@ app.post('/calculate', async (req, res) => {
             return res.status(400).json({ error: 'Dados de entrada incompletos.' });
         }
 
-        const geoResult = await geocoder.geocode(locationString);
-        if (!geoResult || geoResult.length === 0) {
-            return res.status(400).json({ error: `Não foi possível encontrar as coordenadas para "${locationString}".` });
+        // Usando a nova função de geocodificação com Geoapify
+        const geoResult = await geocodeLocation(locationString);
+        if (!geoResult) {
+            return res.status(400).json({ error: `Não foi possível encontrar coordenadas e fuso horário para "${locationString}".` });
         }
-        const lat = geoResult[0].latitude;
-        const lon = geoResult[0].longitude;
+        
+        const { latitude: lat, longitude: lon, timezone } = geoResult;
 
-        // ======================================================
-        // NOVA LÓGICA PARA DETECÇÃO DE FUSO HORÁRIO
-        // ======================================================
-        const timezone = moment.tz.guess(lat, lon);
-        if (!timezone) {
-            return res.status(400).json({ error: `Não foi possível determinar o fuso horário para as coordenadas ${lat}, ${lon}.` });
-        }
-        // ======================================================
-
+        // Conversão precisa para UTC usando o fuso horário retornado pela API
         const birthTimeLocal = moment.tz({ year, month: month - 1, day, hour }, timezone);
         const birthTimeUtc = birthTimeLocal.clone().utc();
 
@@ -97,6 +110,7 @@ app.post('/calculate', async (req, res) => {
         const jd_ut_obj = await sweph.utc_to_jd(utcYear, utcMonth, utcDay, utcHour, 0, 0, 1);
         const julianDay = jd_ut_obj.data[0];
 
+        // O resto do cálculo permanece o mesmo...
         const houseSystem = 'P';
         const housesResult = await sweph.houses(julianDay, lat, lon, houseSystem);
         
@@ -158,9 +172,6 @@ app.post('/calculate', async (req, res) => {
     }
 });
 
-// =================================================================
-// ROTA PADRÃO E INICIALIZAÇÃO DO SERVIDOR
-// =================================================================
 app.get('/', (req, res) => {
     res.send('Servidor astrológico no ar. Use o endpoint POST /calculate para cálculos e GET /api/cidades para autocomplete.');
 });
