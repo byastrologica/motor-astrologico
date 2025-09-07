@@ -106,11 +106,11 @@ app.post('/calculate', async (req, res) => {
 
         if (utcOffset !== undefined && utcOffset !== null) {
             // ======================================================
-            // LÓGICA DE PRECISÃO FINAL (v3)
+            // LÓGICA DE PRECISÃO CORRIGIDA E FINAL
             // ======================================================
-            const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
-            const offsetInMinutes = utcOffset * 60;
-            birthTimeUtc = moment(dateString).utcOffset(offsetInMinutes, true).utc();
+            const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+            // Cria um objeto moment em UTC e SOMA o offset (subtrair um negativo)
+            birthTimeUtc = moment.utc(dateString).subtract(utcOffset, 'hours');
 
         } else {
             // Detecção automática
@@ -161,48 +161,3 @@ app.post('/calculate', async (req, res) => {
             const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
             calculatedPlanets[planet.name] = { longitude: position.data[0], latitude: position.data[1], speed: position.data[3] };
         }
-
-        const aspectsConfig = {
-            conjunction: { angle: 0, orb: 10 }, opposition: { angle: 180, orb: 10 },
-            trine: { angle: 120, orb: 10 }, square: { angle: 90, orb: 10 }, sextile: { angle: 60, orb: 6 }
-        };
-
-        const planetPoints = Object.keys(calculatedPlanets).map(name => ({ name: name, longitude: calculatedPlanets[name].longitude }));
-        
-        const foundAspects = [];
-        for (let i = 0; i < planetPoints.length; i++) {
-            for (let j = i + 1; j < planetPoints.length; j++) {
-                const planet1 = planetPoints[i]; const planet2 = planetPoints[j];
-                let distance = Math.abs(planet1.longitude - planet2.longitude);
-                if (distance > 180) { distance = 360 - distance; }
-                for (const aspectName in aspectsConfig) {
-                    const aspect = aspectsConfig[aspectName];
-                    const orb = Math.abs(distance - aspect.angle);
-                    if (orb <= aspect.orb) { foundAspects.push({ point1: planet1.name, point2: planet2.name, aspect_type: aspectName, orb_degrees: parseFloat(orb.toFixed(2)) }); }
-                }
-            }
-        }
-
-        const responseData = {
-            message: "Cálculo completo do mapa astral realizado com sucesso!",
-            houses: calculatedHouses, planets: calculatedPlanets, aspects: foundAspects
-        };
-
-        res.status(200).json(responseData);
-
-    } catch (error) {
-        console.error("Erro no cálculo:", error);
-        res.status(500).json({ error: 'Erro interno ao realizar o cálculo.', details: error.toString() });
-    }
-});
-
-// =================================================================
-// INICIALIZAÇÃO DO SERVIDOR
-// =================================================================
-app.get('/', (req, res) => {
-    res.send('Servidor astrológico no ar. Use o endpoint POST /calculate para cálculos e GET /api/cidades para autocomplete.');
-});
-
-app.listen(PORT, () => {
-    console.log(`Servidor rodando na porta ${PORT}`);
-});
