@@ -102,14 +102,17 @@ app.post('/calculate', async (req, res) => {
         const hourFloat = parseFloat(hour);
 
         if (utcOffset !== undefined && utcOffset !== null) {
-            // LÓGICA DE PRECISÃO CORRIGIDA
+            // ======================================================
+            // LÓGICA DE PRECISÃO FINAL E CORRIGIDA (v2)
+            // ======================================================
             const hours = Math.floor(hourFloat);
             const minutes = Math.round((hourFloat - hours) * 60);
             
-            // Cria a data/hora local a partir dos componentes
-            const localTime = moment({ year, month: month - 1, day, hour: hours, minute: minutes });
-            // Clona, converte para UTC e DEPOIS aplica o offset
-            birthTimeUtc = localTime.clone().utc().subtract(utcOffset, 'hours');
+            // Cria a data/hora local em um formato ISO
+            const isoString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+            
+            // Usa o método utcOffset para aplicar o fuso horário e depois converte para UTC
+            birthTimeUtc = moment(isoString).utcOffset(utcOffset, false).utc();
 
         } else {
             // Detecção automática
