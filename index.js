@@ -106,10 +106,20 @@ app.post('/calculate', async (req, res) => {
         const jd_ut_obj = await sweph.utc_to_jd(utcYear, utcMonth, utcDay, utcHour, 0, 0, 1);
         const julianDay = jd_ut_obj.data[0];
 
+        // ======================================================
+        // ADICIONANDO LOG PARA DEPURAÇÃO
+        // ======================================================
+        console.log("--- DADOS DE ENTRADA PARA sweph.houses ---");
+        console.log("Dia Juliano:", julianDay);
+        console.log("Latitude:", lat);
+        console.log("Longitude:", lon);
+        console.log("-----------------------------------------");
+
         const houseSystem = 'P';
         const housesResult = await sweph.houses(julianDay, lat, lon, houseSystem);
         
         if (!housesResult || !housesResult.ascmc || !housesResult.cusps) {
+            console.log("!!! sweph.houses FALHOU. Resultado:", housesResult); // Log adicional em caso de falha
             throw new Error("Não foi possível calcular as casas astrológicas para esta data/local.");
         }
         
