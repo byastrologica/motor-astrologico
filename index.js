@@ -1,5 +1,5 @@
 // =================================================================
-// BLOCO 1: DEPENDÊNCIAS E ROTA DE CIDADES
+// DEPENDÊNCIAS E CONFIGURAÇÃO INICIAL
 // =================================================================
 require('dotenv').config();
 const express = require('express');
@@ -20,11 +20,17 @@ app.use(cors());
 // Configura o caminho para os arquivos de efemérides da Swiss Ephemeris
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
+// =================================================================
 // FUNÇÕES AUXILIARES DA GEOAPIFY
+// =================================================================
+
+// Função para geocodificação principal (busca lat, lon e timezone)
 async function geocodeLocation(locationString) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY;
     if (!CHAVE_API) { throw new Error("Chave de API da Geoapify não configurada."); }
+    
     const url = `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(locationString)}&lang=pt&limit=1&format=json&apiKey=${CHAVE_API}`;
+    
     try {
         const response = await axios.get(url);
         if (response.data.results && response.data.results.length > 0) {
@@ -41,15 +47,43 @@ async function geocodeLocation(locationString) {
         throw new Error("Erro ao comunicar com o serviço de geocodificação.");
     }
 }
+
+// Função para autocomplete
 async function buscarCidade(textoDigitado) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY; 
     if (!CHAVE_API) { throw new Error("Configuração do servidor incompleta."); }
     const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(textoDigitado)}&lang=pt&limit=5&type=city&format=json&apiKey=${CHAVE_API}`;
     try {
-        const response = await axios.
+        const response = await axios.get(url);
+        const dados = response.data;
+        let resultadosLimpos = [];
+        if (dados.results) {
+            resultadosLimpos = dados.results.map(resultado => ({
+                nome_formatado: resultado.formatted,
+                latitude: resultado.lat,
+                longitude: resultado.lon,
+                fuso_horario: resultado.timezone.name
+            }));
+        }
+        return resultadosLimpos;
+    } catch (error) { throw new Error("Erro ao comunicar com o serviço de geolocalização."); }
+}
+
 // =================================================================
-// BLOCO 2: ROTA PRINCIPAL DE CÁLCULO
+// ENDPOINTS DA API
 // =================================================================
+
+// Endpoint de Autocomplete
+app.get('/api/cidades', async (req, res) => {
+    const { busca } = req.query;
+    if (!busca || busca.trim().length < 2) { return res.status(400).json({ error: 'Parâmetro "busca" é obrigatório e deve ter ao menos 2 caracteres.' }); }
+    try {
+        const resultados = await buscarCidade(busca);
+        res.status(200).json(resultados);
+    } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+// Endpoint Principal de Cálculo
 app.post('/calculate', async (req, res) => {
     try {
         const { year, month, day, hour, locationString } = req.body;
@@ -141,9 +175,10 @@ app.post('/calculate', async (req, res) => {
         console.error("Erro no cálculo:", error);
         res.status(500).json({ error: 'Erro interno ao realizar o cálculo.', details: error.toString() });
     }
-});            
-    // =================================================================
-// BLOCO 3: INICIALIZAÇÃO DO SERVIDOR
+});
+
+// =================================================================
+// INICIALIZAÇÃO DO SERVIDOR
 // =================================================================
 app.get('/', (req, res) => {
     res.send('Servidor astrológico no ar. Use o endpoint POST /calculate para cálculos e GET /api/cidades para autocomplete.');
@@ -152,4 +187,3 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`);
 });
-        
