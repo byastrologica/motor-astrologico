@@ -6,7 +6,7 @@ const express = require('express');
 const cors = require('cors');
 const sweph = require('sweph');
 const axios = require('axios');
-const moment = require('moment-timezone');
+// moment-timezone não é mais necessário para o cálculo principal
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
     SE_URANUS, SE_NEPTUNE, SE_PLUTO, SE_TRUE_NODE, SEFLG_SPEED
@@ -23,26 +23,7 @@ sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 // =================================================================
 // FUNÇÕES AUXILIARES DA GEOAPIFY
 // =================================================================
-async function geocodeLocation(locationString) {
-    const CHAVE_API = process.env.GEOAPIFY_API_KEY;
-    if (!CHAVE_API) { throw new Error("Chave de API da Geoapify não configurada."); }
-    const url = `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(locationString)}&lang=pt&limit=1&format=json&apiKey=${CHAVE_API}`;
-    try {
-        const response = await axios.get(url);
-        if (response.data.results && response.data.results.length > 0) {
-            const result = response.data.results[0];
-            return {
-                latitude: result.lat,
-                longitude: result.lon,
-                timezone: result.timezone.name
-            };
-        }
-        return null;
-    } catch (error) {
-        console.error("Erro ao geocodificar localização:", error.message);
-        throw new Error("Erro ao comunicar com o serviço de geocodificação.");
-    }
-}
+// A função de autocomplete permanece, pois é útil para o frontend
 async function buscarCidade(textoDigitado) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY; 
     if (!CHAVE_API) { throw new Error("Configuração do servidor incompleta."); }
@@ -56,7 +37,7 @@ async function buscarCidade(textoDigitado) {
                 nome_formatado: resultado.formatted,
                 latitude: resultado.lat,
                 longitude: resultado.lon,
-                fuso_horario: resultado.timezone.name
+                fuso_horario: resultado.timezone.name // O fuso horário ainda é útil para o frontend
             }));
         }
         return resultadosLimpos;
@@ -77,57 +58,19 @@ app.get('/api/cidades', async (req, res) => {
 
 app.post('/calculate', async (req, res) => {
     try {
-        const { year, month, day, hour, locationString, latitude, longitude, utcOffset } = req.body;
+        // Agora esperamos a hora já em UTC
+        const { year, month, day, utcHour, latitude, longitude } = req.body;
 
-        if (year == null || month == null || day == null || hour == null || (!locationString && (latitude == null || longitude == null))) {
-            return res.status(400).json({ error: 'Dados de entrada incompletos. Forneça locationString ou latitude/longitude.' });
+        if (year == null || month == null || day == null || utcHour == null || latitude == null || longitude == null) {
+            return res.status(400).json({ error: 'Dados de entrada incompletos. Forneça year, month, day, utcHour, latitude, longitude.' });
         }
 
-        let lat, lon, timezone;
-
-        if (latitude !== undefined && longitude !== undefined) {
-            lat = parseFloat(latitude);
-            lon = parseFloat(longitude);
-        } else {
-            const geoResult = await geocodeLocation(locationString);
-            if (!geoResult) {
-                return res.status(400).json({ error: `Não foi possível encontrar coordenadas para "${locationString}".` });
-            }
-            lat = geoResult.latitude;
-            lon = geoResult.longitude;
-            timezone = geoResult.timezone;
-        }
+        const lat = parseFloat(latitude);
+        const lon = parseFloat(longitude);
         
-        const hourFloat = parseFloat(hour);
-        const hours = Math.floor(hourFloat);
-        const minutes = Math.round((hourFloat - hours) * 60);
-
-        let birthTimeUtc;
-
-        if (utcOffset !== undefined && utcOffset !== null) {
-            // LÓGICA DE PRECISÃO FINAL
-            const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
-            const offsetInMinutes = utcOffset * 60;
-            birthTimeUtc = moment(dateString).utcOffset(offsetInMinutes, true).utc();
-        } else {
-            // Detecção automática
-            if (!timezone) {
-                timezone = moment.tz.guess(lat, lon);
-            }
-            const birthTimeLocal = moment.tz({ year, month: month - 1, day, hour: hours, minute: minutes }, timezone);
-            birthTimeUtc = birthTimeLocal.clone().utc();
-        }
-
-        const utcYear = birthTimeUtc.year();
-        const utcMonth = birthTimeUtc.month() + 1;
-        const utcDay = birthTimeUtc.date();
-        const utcHour = birthTimeUtc.hour() + (birthTimeUtc.minute() / 60) + (birthTimeUtc.second() / 3600);
-        
-        const jd_ut_obj = await sweph.utc_to_jd(utcYear, utcMonth, utcDay, utcHour, 0, 0, 1);
+        // A hora já é fornecida em UTC, então passamos diretamente
+        const jd_ut_obj = await sweph.utc_to_jd(year, month, day, utcHour, 0, 0, 1);
         const julianDayUT = jd_ut_obj.data[0];
-        
-        const deltaT_obj = await sweph.deltat(julianDayUT);
-        const julianDayET = julianDayUT + deltaT_obj.data;
 
         const houseSystem = 'P';
         const housesResult = await sweph.houses(julianDayUT, lat, lon, houseSystem);
@@ -147,6 +90,9 @@ app.post('/calculate', async (req, res) => {
             }
         };
 
+        const deltaT_obj = await sweph.deltat(julianDayUT);
+        const julianDayET = julianDayUT + deltaT_obj.data;
+        
         const planetsToCalc = [
             { id: SE_SUN, name: 'sun' }, { id: SE_MOON, name: 'moon' },
             { id: SE_MERCURY, name: 'mercury' }, { id: SE_VENUS, name: 'venus' },
