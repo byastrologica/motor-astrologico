@@ -98,28 +98,26 @@ app.post('/calculate', async (req, res) => {
             timezone = geoResult.timezone;
         }
         
-        let birthTimeUtc;
         const hourFloat = parseFloat(hour);
+        const hours = Math.floor(hourFloat);
+        const minutes = Math.round((hourFloat - hours) * 60);
+
+        let birthTimeUtc;
 
         if (utcOffset !== undefined && utcOffset !== null) {
             // ======================================================
-            // LÓGICA DE PRECISÃO FINAL E CORRIGIDA (v2)
+            // LÓGICA DE PRECISÃO FINAL (v3)
             // ======================================================
-            const hours = Math.floor(hourFloat);
-            const minutes = Math.round((hourFloat - hours) * 60);
-            
-            // Cria a data/hora local em um formato ISO
-            const isoString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
-            
-            // Usa o método utcOffset para aplicar o fuso horário e depois converte para UTC
-            birthTimeUtc = moment(isoString).utcOffset(utcOffset, false).utc();
+            const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+            const offsetInMinutes = utcOffset * 60;
+            birthTimeUtc = moment(dateString).utcOffset(offsetInMinutes, true).utc();
 
         } else {
             // Detecção automática
             if (!timezone) {
                 timezone = moment.tz.guess(lat, lon);
             }
-            const birthTimeLocal = moment.tz({ year, month: month - 1, day, hour: hourFloat }, timezone);
+            const birthTimeLocal = moment.tz({ year, month: month - 1, day, hour: hours, minute: minutes }, timezone);
             birthTimeUtc = birthTimeLocal.clone().utc();
         }
 
