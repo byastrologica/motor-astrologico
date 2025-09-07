@@ -29,26 +29,17 @@ sweph.set_ephe_path(ephePath);
 function calculateHousesWithSwetest(jd_ut, lat, lon) {
     return new Promise((resolve, reject) => {
         const swetestPath = path.join(__dirname, 'sweph_bin', 'swetest');
-        const command = `${swetestPath} -edir ${ephePath} -p -h1 -ut${jd_ut} -geopos${lon},${lat},0 -eswe`;
+        
+        // ======================================================
+        // CORREÇÃO FINAL DE SINTAXE DO COMANDO
+        // ======================================================
+        // Removido o espaço entre -edir e o caminho
+        const command = `${swetestPath} -edir${ephePath} -p -h1 -ut${jd_ut} -geopos${lon},${lat},0 -eswe`;
 
         exec(command, (error, stdout, stderr) => {
-            // ======================================================
-            // LOG DE DEPURAÇÃO DETALHADO
-            // ======================================================
-            console.log("--- DIAGNÓSTICO DE EXECUÇÃO DO SWETEST ---");
-            console.log("Comando Executado:", command);
-            console.log("Saída Padrão (stdout):", stdout);
-            console.log("Saída de Erro (stderr):", stderr);
             if (error) {
-                console.log("Objeto de Erro (error):", error);
+                return reject(`Erro ao executar swetest: ${stderr || error.message}`);
             }
-            console.log("-----------------------------------------");
-            // ======================================================
-
-            if (error) {
-                return reject(`Erro ao executar swetest. stderr: [${stderr}] | error: [${error.message}]`);
-            }
-            
             try {
                 const lines = stdout.split('\n');
                 let ascendant = null;
