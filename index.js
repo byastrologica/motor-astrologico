@@ -102,16 +102,19 @@ app.post('/calculate', async (req, res) => {
         const hourFloat = parseFloat(hour);
 
         if (utcOffset !== undefined && utcOffset !== null) {
-            // LÓGICA DE PRECISÃO CORRIGIDA PARA HORA DECIMAL
+            // ======================================================
+            // LÓGICA DE PRECISÃO FINAL E CORRIGIDA
+            // ======================================================
             const hours = Math.floor(hourFloat);
             const minutes = Math.round((hourFloat - hours) * 60);
             
-            // Cria a data/hora local a partir dos componentes
+            // Cria a data e hora local SEM fuso horário
             const localTime = moment({ year, month: month - 1, day, hour: hours, minute: minutes });
-            // Aplica o offset para encontrar a hora UTC correta
+            // Converte para UTC aplicando o offset manual
             birthTimeUtc = localTime.clone().utc().subtract(utcOffset, 'hours');
 
         } else {
+            // MÉTODO 2: Detecção automática
             if (!timezone) {
                 timezone = moment.tz.guess(lat, lon);
             }
@@ -141,66 +144,5 @@ app.post('/calculate', async (req, res) => {
                 1: housesResult.data.houses[0], 2: housesResult.data.houses[1], 3: housesResult.data.houses[2],
                 4: housesResult.data.houses[3], 5: housesResult.data.houses[4], 6: housesResult.data.houses[5],
                 7: housesResult.data.houses[6], 8: housesResult.data.houses[7], 9: housesResult.data.houses[8],
-                10: housesResult.data.houses[9], 11: housesResult.data.houses[10], 12: housesResult.data.houses[11]
-            }
-        };
-
-        const planetsToCalc = [
-            { id: SE_SUN, name: 'sun' }, { id: SE_MOON, name: 'moon' },
-            { id: SE_MERCURY, name: 'mercury' }, { id: SE_VENUS, name: 'venus' },
-            { id: SE_MARS, name: 'mars' }, { id: SE_JUPITER, name: 'jupiter' },
-            { id: SE_SATURN, name: 'saturn' }, { id: SE_URANUS, name: 'uranus' },
-            { id: SE_NEPTUNE, name: 'neptune' }, { id: SE_PLUTO, name: 'pluto' },
-            { id: SE_TRUE_NODE, name: 'north_node' }
-        ];
-
-        const calculatedPlanets = {};
-        for (const planet of planetsToCalc) {
-            const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
-            calculatedPlanets[planet.name] = { longitude: position.data[0], latitude: position.data[1], speed: position.data[3] };
-        }
-
-        const aspectsConfig = {
-            conjunction: { angle: 0, orb: 10 }, opposition: { angle: 180, orb: 10 },
-            trine: { angle: 120, orb: 10 }, square: { angle: 90, orb: 10 }, sextile: { angle: 60, orb: 6 }
-        };
-
-        const planetPoints = Object.keys(calculatedPlanets).map(name => ({ name: name, longitude: calculatedPlanets[name].longitude }));
-        
-        const foundAspects = [];
-        for (let i = 0; i < planetPoints.length; i++) {
-            for (let j = i + 1; j < planetPoints.length; j++) {
-                const planet1 = planetPoints[i]; const planet2 = planetPoints[j];
-                let distance = Math.abs(planet1.longitude - planet2.longitude);
-                if (distance > 180) { distance = 360 - distance; }
-                for (const aspectName in aspectsConfig) {
-                    const aspect = aspectsConfig[aspectName];
-                    const orb = Math.abs(distance - aspect.angle);
-                    if (orb <= aspect.orb) { foundAspects.push({ point1: planet1.name, point2: planet2.name, aspect_type: aspectName, orb_degrees: parseFloat(orb.toFixed(2)) }); }
-                }
-            }
-        }
-
-        const responseData = {
-            message: "Cálculo completo do mapa astral realizado com sucesso!",
-            houses: calculatedHouses, planets: calculatedPlanets, aspects: foundAspects
-        };
-
-        res.status(200).json(responseData);
-
-    } catch (error) {
-        console.error("Erro no cálculo:", error);
-        res.status(500).json({ error: 'Erro interno ao realizar o cálculo.', details: error.toString() });
-    }
-});
-
-// =================================================================
-// INICIALIZAÇÃO DO SERVIDOR
-// =================================================================
-app.get('/', (req, res) => {
-    res.send('Servidor astrológico no ar. Use o endpoint POST /calculate para cálculos e GET /api/cidades para autocomplete.');
-});
-
-app.listen(PORT, () => {
-    console.log(`Servidor rodando na porta ${PORT}`);
-});
+                10: housesResult.data.
+                    
