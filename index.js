@@ -83,7 +83,7 @@ app.post('/calculate', async (req, res) => {
             return res.status(400).json({ error: 'Dados de entrada incompletos. Forneça locationString ou latitude/longitude.' });
         }
 
-        let lat, lon, timezone;
+        let lat, lon;
 
         if (latitude !== undefined && longitude !== undefined) {
             lat = parseFloat(latitude);
@@ -95,49 +95,30 @@ app.post('/calculate', async (req, res) => {
             }
             lat = geoResult.latitude;
             lon = geoResult.longitude;
-            timezone = geoResult.timezone;
         }
         
+        // --- LÓGICA DE CONVERSÃO DE TEMPO CORRIGIDA E SIMPLIFICADA ---
         const hourFloat = parseFloat(hour);
-        const hours = Math.floor(hourFloat);
-        const minutes = Math.round((hourFloat - hours) * 60);
-
-        let birthTimeUtc;
-
-        if (utcOffset !== undefined && utcOffset !== null) {
-            const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
-            const offsetString = utcOffset >= 0 ? `+${String(Math.abs(utcOffset)).padStart(2, '0')}:00` : `-${String(Math.abs(utcOffset)).padStart(2, '0')}:00`;
-            birthTimeUtc = moment(dateString + offsetString).utc();
-        } else {
-            if (!timezone) {
-                timezone = moment.tz.guess(lat, lon);
-            }
-            const birthTimeLocal = moment.tz({ year, month: month - 1, day, hour: hours, minute: minutes }, timezone);
-            birthTimeUtc = birthTimeLocal.clone().utc();
-        }
-
-        const utcYear = birthTimeUtc.year();
-        const utcMonth = birthTimeUtc.month() + 1;
-        const utcDay = birthTimeUtc.date();
-        const utcHour = birthTimeUtc.hour() + (birthTimeUtc.minute() / 60) + (birthTimeUtc.second() / 3600);
+        const offset = (utcOffset !== undefined && utcOffset !== null) ? parseFloat(utcOffset) : 0;
         
-        // ======================================================
-        // CÁLCULO PRECISO COM DELTA T
-        // ======================================================
-        // 1. Calcular o Dia Juliano em Tempo Universal (UT)
+        // Calcula a hora UTC diretamente
+        const utcHourFloat = hourFloat - offset;
+
+        // Usa o objeto Date do JavaScript para lidar com o rollover de dias
+        const date = new Date(Date.UTC(year, month - 1, day));
+        date.setUTCHours(utcHourFloat * 1000 * 3600 / 1000); // Converte horas para milissegundos e define
+        
+        const utcYear = date.getUTCFullYear();
+        const utcMonth = date.getUTCMonth() + 1;
+        const utcDay = date.getUTCDate();
+        const utcHour = date.getUTCHours() + (date.getUTCMinutes() / 60) + (date.getUTCSeconds() / 3600);
+        // --- FIM DA LÓGICA DE CONVERSÃO ---
+        
         const jd_ut_obj = await sweph.utc_to_jd(utcYear, utcMonth, utcDay, utcHour, 0, 0, 1);
-        const julianDayUT = jd_ut_obj.data[0];
-
-        // 2. Obter a correção Delta T para essa data
-        const deltaT = await sweph.get_tjd_ut(julianDayUT);
-        
-        // 3. Calcular o Dia Juliano em Tempo de Efemérides (ET), que é o tempo para os cálculos precisos
-        const julianDayET = julianDayUT + deltaT.data;
-        // ======================================================
+        const julianDay = jd_ut_obj.data[0];
 
         const houseSystem = 'P';
-        // Usar julianDayUT para o cálculo das casas, pois elas são baseadas na rotação da Terra (UT)
-        const housesResult = await sweph.houses(julianDayUT, lat, lon, houseSystem);
+        const housesResult = await sweph.houses(julianDay, lat, lon, houseSystem);
         
         if (!housesResult || !housesResult.data || !housesResult.data.houses || !housesResult.data.points) {
             throw new Error("Não foi possível calcular as casas astrológicas para esta data/local.");
@@ -165,8 +146,7 @@ app.post('/calculate', async (req, res) => {
 
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
-            // Usar julianDayET para o cálculo dos planetas, que são baseados no tempo orbital (ET)
-            const position = await sweph.calc(julianDayET, planet.id, SEFLG_SPEED);
+            const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
             calculatedPlanets[planet.name] = { longitude: position.data[0], latitude: position.data[1], speed: position.data[3] };
         }
 
