@@ -32,9 +32,23 @@ function calculateHousesWithSwetest(jd_ut, lat, lon) {
         const command = `${swetestPath} -edir ${ephePath} -p -h1 -ut${jd_ut} -geopos${lon},${lat},0 -eswe`;
 
         exec(command, (error, stdout, stderr) => {
+            // ======================================================
+            // LOG DE DEPURAÇÃO DETALHADO
+            // ======================================================
+            console.log("--- DIAGNÓSTICO DE EXECUÇÃO DO SWETEST ---");
+            console.log("Comando Executado:", command);
+            console.log("Saída Padrão (stdout):", stdout);
+            console.log("Saída de Erro (stderr):", stderr);
             if (error) {
-                return reject(`Erro ao executar swetest: ${stderr || error.message}`);
+                console.log("Objeto de Erro (error):", error);
             }
+            console.log("-----------------------------------------");
+            // ======================================================
+
+            if (error) {
+                return reject(`Erro ao executar swetest. stderr: [${stderr}] | error: [${error.message}]`);
+            }
+            
             try {
                 const lines = stdout.split('\n');
                 let ascendant = null;
