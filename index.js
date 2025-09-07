@@ -24,7 +24,6 @@ sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 // FUNÇÕES AUXILIARES DA GEOAPIFY
 // =================================================================
 
-// Função para geocodificação principal (busca lat, lon e timezone)
 async function geocodeLocation(locationString) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY;
     if (!CHAVE_API) { throw new Error("Chave de API da Geoapify não configurada."); }
@@ -38,7 +37,7 @@ async function geocodeLocation(locationString) {
             return {
                 latitude: result.lat,
                 longitude: result.lon,
-                timezone: result.timezone.name // O fuso horário exato que precisamos
+                timezone: result.timezone.name
             };
         }
         return null;
@@ -48,7 +47,6 @@ async function geocodeLocation(locationString) {
     }
 }
 
-// Função para autocomplete (não muda)
 async function buscarCidade(textoDigitado) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY; 
     if (!CHAVE_API) { throw new Error("Configuração do servidor incompleta."); }
@@ -90,7 +88,6 @@ app.post('/calculate', async (req, res) => {
             return res.status(400).json({ error: 'Dados de entrada incompletos.' });
         }
 
-        // Usando a nova função de geocodificação com Geoapify
         const geoResult = await geocodeLocation(locationString);
         if (!geoResult) {
             return res.status(400).json({ error: `Não foi possível encontrar coordenadas e fuso horário para "${locationString}".` });
@@ -98,7 +95,6 @@ app.post('/calculate', async (req, res) => {
         
         const { latitude: lat, longitude: lon, timezone } = geoResult;
 
-        // Conversão precisa para UTC usando o fuso horário retornado pela API
         const birthTimeLocal = moment.tz({ year, month: month - 1, day, hour }, timezone);
         const birthTimeUtc = birthTimeLocal.clone().utc();
 
@@ -110,7 +106,6 @@ app.post('/calculate', async (req, res) => {
         const jd_ut_obj = await sweph.utc_to_jd(utcYear, utcMonth, utcDay, utcHour, 0, 0, 1);
         const julianDay = jd_ut_obj.data[0];
 
-        // O resto do cálculo permanece o mesmo...
         const houseSystem = 'P';
         const housesResult = await sweph.houses(julianDay, lat, lon, houseSystem);
         
@@ -164,5 +159,18 @@ app.post('/calculate', async (req, res) => {
             houses: calculatedHouses, planets: calculatedPlanets, aspects: foundAspects
         };
 
-        res.status(2
-                   
+        res.status(200).json(responseData);
+
+    } catch (error) {
+        console.error("Erro no cálculo:", error);
+        res.status(500).json({ error: 'Erro interno ao realizar o cálculo.', details: error.toString() });
+    }
+});
+
+app.get('/', (req, res) => {
+    res.send('Servidor astrológico no ar. Use o endpoint POST /calculate para cálculos e GET /api/cidades para autocomplete.');
+});
+
+app.listen(PORT, () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
+});
