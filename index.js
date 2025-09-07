@@ -6,7 +6,6 @@ const express = require('express');
 const cors = require('cors');
 const sweph = require('sweph');
 const axios = require('axios');
-// moment-timezone não é mais necessário para o cálculo principal
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
     SE_URANUS, SE_NEPTUNE, SE_PLUTO, SE_TRUE_NODE, SEFLG_SPEED
@@ -21,9 +20,8 @@ app.use(cors());
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
 // =================================================================
-// FUNÇÕES AUXILIARES DA GEOAPIFY
+// FUNÇÃO AUXILIAR DA GEOAPIFY (PARA AUTOCOMPLETE)
 // =================================================================
-// A função de autocomplete permanece, pois é útil para o frontend
 async function buscarCidade(textoDigitado) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY; 
     if (!CHAVE_API) { throw new Error("Configuração do servidor incompleta."); }
@@ -37,7 +35,7 @@ async function buscarCidade(textoDigitado) {
                 nome_formatado: resultado.formatted,
                 latitude: resultado.lat,
                 longitude: resultado.lon,
-                fuso_horario: resultado.timezone.name // O fuso horário ainda é útil para o frontend
+                fuso_horario: resultado.timezone.name
             }));
         }
         return resultadosLimpos;
@@ -58,7 +56,7 @@ app.get('/api/cidades', async (req, res) => {
 
 app.post('/calculate', async (req, res) => {
     try {
-        // Agora esperamos a hora já em UTC
+        // API agora espera a hora diretamente em UTC
         const { year, month, day, utcHour, latitude, longitude } = req.body;
 
         if (year == null || month == null || day == null || utcHour == null || latitude == null || longitude == null) {
@@ -68,10 +66,11 @@ app.post('/calculate', async (req, res) => {
         const lat = parseFloat(latitude);
         const lon = parseFloat(longitude);
         
-        // A hora já é fornecida em UTC, então passamos diretamente
-        const jd_ut_obj = await sweph.utc_to_jd(year, month, day, utcHour, 0, 0, 1);
+        // A hora já é fornecida em UTC, então passamos diretamente para o cálculo do Dia Juliano
+        const jd_ut_obj = await sweph.utc_to_jd(year, month, day, parseFloat(utcHour), 0, 0, 1);
         const julianDayUT = jd_ut_obj.data[0];
 
+        // O cálculo das casas usa o Dia Juliano em UT
         const houseSystem = 'P';
         const housesResult = await sweph.houses(julianDayUT, lat, lon, houseSystem);
         
@@ -90,6 +89,7 @@ app.post('/calculate', async (req, res) => {
             }
         };
 
+        // Para os planetas, usamos o tempo de efemérides (ET) para máxima precisão
         const deltaT_obj = await sweph.deltat(julianDayUT);
         const julianDayET = julianDayUT + deltaT_obj.data;
         
