@@ -105,9 +105,10 @@ app.post('/calculate', async (req, res) => {
         let birthTimeUtc;
 
         if (utcOffset !== undefined && utcOffset !== null) {
-            // LÓGICA DE PRECISÃO CORRIGIDA E FINAL
+            // LÓGICA DE PRECISÃO FINAL
             const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
-            birthTimeUtc = moment.utc(dateString).subtract(utcOffset, 'hours');
+            const offsetInMinutes = utcOffset * 60;
+            birthTimeUtc = moment(dateString).utcOffset(offsetInMinutes, true).utc();
         } else {
             // Detecção automática
             if (!timezone) {
@@ -124,7 +125,7 @@ app.post('/calculate', async (req, res) => {
         
         const jd_ut_obj = await sweph.utc_to_jd(utcYear, utcMonth, utcDay, utcHour, 0, 0, 1);
         const julianDayUT = jd_ut_obj.data[0];
-
+        
         const deltaT_obj = await sweph.deltat(julianDayUT);
         const julianDayET = julianDayUT + deltaT_obj.data;
 
