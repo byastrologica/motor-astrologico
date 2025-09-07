@@ -4,7 +4,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { exec } = require('child_process'); // Módulo nativo para executar comandos
+const { exec } = require('child_process');
 const path = require('path');
 const axios = require('axios');
 const {
@@ -12,7 +12,6 @@ const {
     SE_URANUS, SE_NEPTUNE, SE_PLUTO, SE_TRUE_NODE, SEFLG_SPEED
 } = require('./constants');
 
-// A biblioteca 'sweph' ainda será usada para os planetas, que já estavam corretos.
 const sweph = require('sweph'); 
 
 const app = express();
@@ -20,7 +19,6 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(cors());
 
-// Define o caminho para os arquivos de efemérides que baixamos
 const ephePath = path.join(__dirname, 'sweph_bin', 'ephe');
 sweph.set_ephe_path(ephePath);
 
@@ -28,16 +26,22 @@ sweph.set_ephe_path(ephePath);
 // FUNÇÕES AUXILIARES
 // =================================================================
 
-// Nova função que executa o programa de linha de comando `swetest`
 function calculateHousesWithSwetest(jd_ut, lat, lon) {
     return new Promise((resolve, reject) => {
         const swetestPath = path.join(__dirname, 'sweph_bin', 'swetest');
         const ephePathArg = `-edir${ephePath}`;
         
-        // Comando para calcular apenas Ascendente e Meio do Céu (-p -h1)
         const command = `${swetestPath} ${ephePathArg} -p -h1 -ut${jd_ut} -geopos${lon},${lat},0 -eswe`;
 
         exec(command, (error, stdout, stderr) => {
+            // ======================================================
+            // LOG DE DEPURAÇÃO ADICIONADO AQUI
+            // ======================================================
+            console.log("--- SAÍDA BRUTA DO SWETEST ---");
+            console.log(stdout);
+            console.log("--- FIM DA SAÍDA ---");
+            // ======================================================
+
             if (error) {
                 return reject(`Erro ao executar swetest: ${stderr || error.message}`);
             }
@@ -47,7 +51,6 @@ function calculateHousesWithSwetest(jd_ut, lat, lon) {
                 let ascendant = null;
                 let mc = null;
                 
-                // Extrai as cúspides de todas as casas
                 const cusps = [];
                 for (const line of lines) {
                     if (line.trim().match(/^house\s+\d+/)) {
