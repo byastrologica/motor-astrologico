@@ -60,14 +60,10 @@ app.post('/calculate', async (req, res) => {
             }
         }
 
-        // Analisa cada planeta para obter os dados para o prompt
         const analysisData = planetPoints.map(p => analyzePlanet(p, calculatedPlanets, foundAspects));
-
-        // Gera as interpretações para cada planeta em paralelo
         const interpretationPromises = analysisData.map(data => generateInterpretation(data));
         const interpretations = await Promise.all(interpretationPromises);
 
-        // Monta o relatório final
         const fullReport = {};
         analysisData.forEach((data, index) => {
             fullReport[data.name.toLowerCase()] = interpretations[index];
