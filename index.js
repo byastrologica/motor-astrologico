@@ -8,7 +8,7 @@ const sweph = require('sweph');
 const axios = require('axios');
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
-    SE_URANUS, SE_NEPTUNE, SE_PLUTO
+    SE_URANUS, SE_NEPTUNE, SE_PLUTO, SEFLG_SPEED // <-- SEFLG_SPEED CORRIGIDO
 } = require('./constants');
 
 const app = express();
@@ -34,10 +34,10 @@ const DECANATE_RULERS = {
     CANCER: ['Lua', 'Plutão', 'Netuno'], ESCORPIAO: ['Plutão', 'Netuno', 'Lua'], PEIXES: ['Netuno', 'Lua', 'Plutão']
 };
 
-// NOTA: A base de Símbolos Sabianos é grande. Para este exemplo, apenas alguns foram incluídos.
 const SABIAN_SYMBOLS = {
     ARIES: { 13: "Uma bomba que não explodiu revela que a sociedade está a salvo." },
     CAPRICORNIO: { 14: "Um antigo baixo-relevo esculpido em granito permanece como testemunha de uma longa cultura esquecida." }
+    // NOTA: A base completa dos 360 símbolos seria adicionada aqui.
 };
 
 function getZodiacPosition(longitude) {
@@ -99,7 +99,7 @@ async function getGeminiInterpretation(analysisData) {
 
     let prompt = `
     Atue como um astrólogo especialista em psicologia profunda, com um estilo de escrita inspirado em Liz Greene. Sua análise deve ser focada em autoconhecimento, não ser fatalista e ter um tom empoderador.
-    Gere uma interpretação psicológica detalhada e coesa para o mapa astral a seguir, tecendo todas as informações de cada planeta em uma narrativa fluida. Inicie com uma introdução geral e depois analise cada planeta individualmente.
+    Gere uma interpretação psicológica detalhada e coesa para o mapa astral a seguir, tecendo todas as informações de cada planeta em uma narrativa fluida. Inicie com uma introdução geral sobre as energias principais do mapa e depois analise cada planeta individualmente.
 
     **DADOS COMPLETOS DO MAPA ASTRAL:**
     `;
@@ -135,7 +135,6 @@ async function getGeminiInterpretation(analysisData) {
         throw new Error("Falha na comunicação com o serviço de interpretação.");
     }
 }
-
 
 // =================================================================
 // ENDPOINT PRINCIPAL DA API
