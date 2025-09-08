@@ -8,7 +8,7 @@ const sweph = require('sweph');
 const axios = require('axios');
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
-    SE_URANUS, SE_NEPTUNE, SE_PLUTO
+    SE_URANUS, SE_NEPTUNE, SE_PLUTO, SEFLG_SPEED // <-- CORREÇÃO: SEFLG_SPEED adicionado de volta
 } = require('./constants');
 
 const app = express();
@@ -19,17 +19,12 @@ app.use(cors());
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
 // =================================================================
-// BASE DE DADOS E FUNÇÕES DE ANÁLISE ASTROLÓGICA (COM CORREÇÃO)
+// BASE DE DADOS E FUNÇÕES DE ANÁLISE ASTROLÓGICA
 // =================================================================
 
-// Estrutura corrigida para garantir consistência
-const ZODIAC_DATA = [
-    { key: 'ARIES', name: 'Áries' }, { key: 'TOURO', name: 'Touro' },
-    { key: 'GEMEOS', name: 'Gêmeos' }, { key: 'CANCER', name: 'Câncer' },
-    { key: 'LEAO', name: 'Leão' }, { key: 'VIRGEM', name: 'Virgem' },
-    { key: 'LIBRA', name: 'Libra' }, { key: 'ESCORPIAO', name: 'Escorpião' },
-    { key: 'SAGITARIO', name: 'Sagitário' }, { key: 'CAPRICORNIO', name: 'Capricórnio' },
-    { key: 'AQUARIO', name: 'Aquário' }, { key: 'PEIXES', name: 'Peixes' }
+const ZODIAC_SIGNS = [
+    'Áries', 'Touro', 'Gêmeos', 'Câncer', 'Leão', 'Virgem',
+    'Libra', 'Escorpião', 'Sagitário', 'Capricórnio', 'Aquário', 'Peixes'
 ];
 
 const DECANATE_RULERS = {
@@ -42,13 +37,14 @@ const DECANATE_RULERS = {
 const SABIAN_SYMBOLS = {
     ARIES: { 13: "Uma bomba que não explodiu revela que a sociedade está a salvo." },
     CAPRICORNIO: { 14: "Um antigo baixo-relevo esculpido em granito permanece como testemunha de uma longa cultura esquecida." }
+    // NOTA: A base completa dos 360 símbolos seria adicionada aqui.
 };
 
 function getZodiacPosition(longitude) {
     const signIndex = Math.floor(longitude / 30);
     const degreeWithinSign = longitude % 30;
     return {
-        signData: ZODIAC_DATA[signIndex],
+        sign: ZODIAC_SIGNS[signIndex],
         degree: Math.floor(degreeWithinSign),
         fullDegree: degreeWithinSign
     };
@@ -56,20 +52,19 @@ function getZodiacPosition(longitude) {
 
 function analyzePlanet(planet, allPlanets, allAspects) {
     const { name, longitude } = planet;
-    const { signData, degree, fullDegree } = getZodiacPosition(longitude);
+    const { sign, degree, fullDegree } = getZodiacPosition(longitude);
 
     const decanateIndex = Math.floor(degree / 10);
-    // Usa a chave correta (ex: 'GEMEOS') para a busca
-    const decanateRuler = DECANATE_RULERS[signData.key][decanateIndex];
+    const decanateRuler = DECANATE_RULERS[sign.toUpperCase().replace('Ê', 'E').replace('Ô', 'O')][decanateIndex]; // Normaliza para a busca
 
     const dwadIndex = Math.floor(fullDegree / 2.5);
-    const dwadSign = ZODIAC_DATA[(ZODIAC_DATA.indexOf(signData) + dwadIndex) % 12].name;
+    const dwadSign = ZODIAC_SIGNS[(ZODIAC_SIGNS.indexOf(sign) + dwadIndex) % 12];
 
     const aspects = allAspects
         .filter(aspect => aspect.point1 === name || aspect.point2 === name)
         .map(aspect => {
             const otherPlanetName = aspect.point1 === name ? aspect.point2 : aspect.point1;
-            const otherPlanetSign = getZodiacPosition(allPlanets[otherPlanetName].longitude).signData.name;
+            const otherPlanetSign = getZodiacPosition(allPlanets[otherPlanetName].longitude).sign;
             return `${aspect.aspect_type.charAt(0).toUpperCase() + aspect.aspect_type.slice(1)} com ${otherPlanetName} em ${otherPlanetSign}`;
         });
 
@@ -78,13 +73,13 @@ function analyzePlanet(planet, allPlanets, allAspects) {
     if (sabianDegree === 30) degreeNote = "Este planeta está no grau anarético (29 graus).";
     else if ([1, 13, 26].includes(sabianDegree)) degreeNote = "Note que este planeta se encontra em um grau crítico.";
 
-    const sabianSymbol = (SABIAN_SYMBOLS[signData.key] && SABIAN_SYMBOLS[signData.key][sabianDegree]) 
-        ? SABIAN_SYMBOLS[signData.key][sabianDegree]
-        : `Imagem simbólica para o grau ${sabianDegree} de ${signData.name}.`;
+    const sabianSymbol = (SABIAN_SYMBOLS[sign.toUpperCase().replace('Ê', 'E').replace('Ô', 'O')] && SABIAN_SYMBOLS[sign.toUpperCase().replace('Ê', 'E').replace('Ô', 'O')][sabianDegree]) 
+        ? SABIAN_SYMBOLS[sign.toUpperCase().replace('Ê', 'E').replace('Ô', 'O')][sabianDegree]
+        : `Imagem simbólica para o grau ${sabianDegree} de ${sign}.`;
 
     return {
         name: name.charAt(0).toUpperCase() + name.slice(1),
-        sign: signData.name,
+        sign,
         decanate: `${decanateIndex + 1}º decanato, sub-regido por ${decanateRuler}`,
         dwad: dwadSign,
         aspects: aspects,
@@ -140,7 +135,6 @@ async function getGeminiInterpretation(analysisData) {
         throw new Error("Falha na comunicação com o serviço de interpretação.");
     }
 }
-
 
 // =================================================================
 // ENDPOINT PRINCIPAL DA API
