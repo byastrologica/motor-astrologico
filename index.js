@@ -5,8 +5,6 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const sweph = require('sweph');
-const axios = require('axios');
-const moment = require('moment-timezone');
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
     SE_URANUS, SE_NEPTUNE, SE_PLUTO, SE_TRUE_NODE, SEFLG_SPEED
@@ -21,11 +19,6 @@ app.use(cors());
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
 // =================================================================
-// FUNÇÃO AUXILIAR DA GEOAPIFY (REMOVIDA, NÃO MAIS NECESSÁRIA NO CÓDIGO SIMPLIFICADO)
-// =================================================================
-
-
-// =================================================================
 // ENDPOINT PRINCIPAL DA API
 // =================================================================
 
@@ -34,13 +27,10 @@ app.post('/calculate', async (req, res) => {
         // A API agora espera apenas os dados puros para o cálculo
         const { year, month, day, utcHour, latitude, longitude } = req.body;
 
-        // Validação correta, checando por 'utcHour'
+        // Validação final e correta, checando pelos campos corretos
         if (year == null || month == null || day == null || utcHour == null || latitude == null || longitude == null) {
             return res.status(400).json({ error: 'Dados de entrada incompletos. Forneça year, month, day, utcHour, latitude, longitude.' });
         }
-
-        const lat = parseFloat(latitude);
-        const lon = parseFloat(longitude);
         
         const jd_ut_obj = await sweph.utc_to_jd(year, month, day, parseFloat(utcHour), 0, 0, 1);
         const julianDay = jd_ut_obj.data[0];
@@ -105,3 +95,4 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`);
 });
+
