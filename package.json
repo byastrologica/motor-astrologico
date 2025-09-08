@@ -12,7 +12,8 @@
     "cors": "^2.8.5",
     "axios": "^1.7.2",
     "dotenv": "^16.4.5",
-    "node-geocoder": "^4.3.0",
-    "moment-timezone": "^0.5.45"
+    "moment-timezone": "^0.5.45",
+    "csv-parser": "^3.0.0"
   }
 }
+
