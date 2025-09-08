@@ -6,7 +6,6 @@ const express = require('express');
 const cors = require('cors');
 const sweph = require('sweph');
 const axios = require('axios');
-const moment = require('moment-timezone');
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
     SE_URANUS, SE_NEPTUNE, SE_PLUTO, SE_TRUE_NODE, SEFLG_SPEED
@@ -17,32 +16,12 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(cors());
 
-// Configura o caminho para os arquivos de efemérides da biblioteca sweph
+// Configura o caminho para os arquivos de efemérides da Swiss Ephemeris
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
 // =================================================================
-// FUNÇÕES AUXILIARES DA GEOAPIFY
+// FUNÇÃO AUXILIAR DA GEOAPIFY (PARA AUTOCOMPLETE)
 // =================================================================
-async function geocodeLocation(locationString) {
-    const CHAVE_API = process.env.GEOAPIFY_API_KEY;
-    if (!CHAVE_API) { throw new Error("Chave de API da Geoapify não configurada."); }
-    const url = `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(locationString)}&lang=pt&limit=1&format=json&apiKey=${CHAVE_API}`;
-    try {
-        const response = await axios.get(url);
-        if (response.data.results && response.data.results.length > 0) {
-            const result = response.data.results[0];
-            return {
-                latitude: result.lat,
-                longitude: result.lon,
-                timezone: result.timezone.name
-            };
-        }
-        return null;
-    } catch (error) {
-        console.error("Erro ao geocodificar localização:", error.message);
-        throw new Error("Erro ao comunicar com o serviço de geocodificação.");
-    }
-}
 async function buscarCidade(textoDigitado) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY; 
     if (!CHAVE_API) { throw new Error("Configuração do servidor incompleta."); }
@@ -77,58 +56,21 @@ app.get('/api/cidades', async (req, res) => {
 
 app.post('/calculate', async (req, res) => {
     try {
-        const { year, month, day, hour, locationString, latitude, longitude, utcOffset } = req.body;
+        const { year, month, day, utcHour, latitude, longitude } = req.body;
 
-        if (!year || !month || !day || !hour) {
-            return res.status(400).json({ error: 'Dados de data/hora incompletos.' });
-        }
-        if (!locationString && (latitude === undefined || longitude === undefined)) {
-            return res.status(400).json({ error: 'Dados de localização incompletos. Forneça locationString ou latitude/longitude.' });
+        // Validação final e correta, checando por 'utcHour'
+        if (year == null || month == null || day == null || utcHour == null || latitude == null || longitude == null) {
+            return res.status(400).json({ error: 'Dados de entrada incompletos. Forneça year, month, day, utcHour, latitude, longitude.' });
         }
 
-        let lat, lon, timezone;
-
-        if (latitude !== undefined && longitude !== undefined) {
-            lat = parseFloat(latitude);
-            lon = parseFloat(longitude);
-        } else {
-            const geoResult = await geocodeLocation(locationString);
-            if (!geoResult) {
-                return res.status(400).json({ error: `Não foi possível encontrar coordenadas para "${locationString}".` });
-            }
-            lat = geoResult.latitude;
-            lon = geoResult.longitude;
-            timezone = geoResult.timezone;
-        }
+        const lat = parseFloat(latitude);
+        const lon = parseFloat(longitude);
         
-        const hourFloat = parseFloat(hour);
-        const hours = Math.floor(hourFloat);
-        const minutes = Math.round((hourFloat - hours) * 60);
-
-        let birthTimeUtc;
-
-        if (utcOffset !== undefined && utcOffset !== null) {
-            const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
-            const offsetString = utcOffset >= 0 ? `+${String(Math.abs(utcOffset)).padStart(2, '0')}:00` : `-${String(Math.abs(utcOffset)).padStart(2, '0')}:00`;
-            birthTimeUtc = moment(dateString + offsetString).utc();
-        } else {
-            if (!timezone) {
-                timezone = moment.tz.guess(lat, lon);
-            }
-            const birthTimeLocal = moment.tz({ year, month: month - 1, day, hour: hours, minute: minutes }, timezone);
-            birthTimeUtc = birthTimeLocal.clone().utc();
-        }
-
-        const utcYear = birthTimeUtc.year();
-        const utcMonth = birthTimeUtc.month() + 1;
-        const utcDay = birthTimeUtc.date();
-        const utcHour = birthTimeUtc.hour() + (birthTimeUtc.minute() / 60) + (birthTimeUtc.second() / 3600);
-        
-        const jd_ut_obj = await sweph.utc_to_jd(utcYear, utcMonth, utcDay, utcHour, 0, 0, 1);
-        const julianDay = jd_ut_obj.data[0];
+        const jd_ut_obj = await sweph.utc_to_jd(year, month, day, parseFloat(utcHour), 0, 0, 1);
+        const julianDayUT = jd_ut_obj.data[0];
 
         const houseSystem = 'P';
-        const housesResult = await sweph.houses(julianDay, lat, lon, houseSystem);
+        const housesResult = await sweph.houses(julianDayUT, lat, lon, houseSystem);
         
         if (!housesResult || !housesResult.data || !housesResult.data.houses || !housesResult.data.points) {
             throw new Error("Não foi possível calcular as casas astrológicas para esta data/local.");
@@ -145,6 +87,9 @@ app.post('/calculate', async (req, res) => {
             }
         };
 
+        const deltaT_obj = await sweph.deltat(julianDayUT);
+        const julianDayET = julianDayUT + deltaT_obj.data;
+        
         const planetsToCalc = [
             { id: SE_SUN, name: 'sun' }, { id: SE_MOON, name: 'moon' },
             { id: SE_MERCURY, name: 'mercury' }, { id: SE_VENUS, name: 'venus' },
@@ -156,7 +101,7 @@ app.post('/calculate', async (req, res) => {
 
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
-            const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
+            const position = await sweph.calc(julianDayET, planet.id, SEFLG_SPEED);
             calculatedPlanets[planet.name] = { longitude: position.data[0], latitude: position.data[1], speed: position.data[3] };
         }
 
