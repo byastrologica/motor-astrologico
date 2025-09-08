@@ -5,73 +5,33 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const sweph = require('sweph');
-const axios = require('axios');
-const moment = require('moment-timezone');
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
     SE_URANUS, SE_NEPTUNE, SE_PLUTO, SE_TRUE_NODE, SEFLG_SPEED
 } = require('./constants');
-const { loadKnowledgeBase } = require('./knowledgeBase');
-const { mapPlanetToIds, updatePlanetRef } = require('./mapper');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(cors());
 
+// Configura o caminho para os arquivos de efemérides da Swiss Ephemeris
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
-
-let KB; // Variável para a Base de Conhecimento
-
-// =================================================================
-// FUNÇÕES AUXILIARES
-// =================================================================
-async function geocodeLocation(locationString) {
-    const CHAVE_API = process.env.GEOAPIFY_API_KEY;
-    if (!CHAVE_API) { throw new Error("Chave de API da Geoapify não configurada."); }
-    const url = `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(locationString)}&lang=pt&limit=1&format=json&apiKey=${CHAVE_API}`;
-    try {
-        const response = await axios.get(url);
-        if (response.data.results && response.data.results.length > 0) {
-            const result = response.data.results[0];
-            return { latitude: result.lat, longitude: result.lon, timezone: result.timezone.name };
-        }
-        return null;
-    } catch (error) {
-        console.error("Erro ao geocodificar localização:", error.message);
-        throw new Error("Erro ao comunicar com o serviço de geocodificação.");
-    }
-}
 
 // =================================================================
 // ENDPOINT PRINCIPAL DA API
 // =================================================================
+
 app.post('/calculate', async (req, res) => {
     try {
-        const { year, month, day, hour, locationString } = req.body;
+        const { year, month, day, utcHour, latitude, longitude } = req.body;
 
-        if (!year || !month || !day || !hour || !locationString) {
-            return res.status(400).json({ error: 'Dados de entrada incompletos.' });
+        // Validação correta, checando pelos campos corretos
+        if (year == null || month == null || day == null || utcHour == null || latitude == null || longitude == null) {
+            return res.status(400).json({ error: 'Dados de entrada incompletos. Forneça year, month, day, utcHour, latitude, longitude.' });
         }
-
-        const geoResult = await geocodeLocation(locationString);
-        if (!geoResult) { return res.status(400).json({ error: `Não foi possível encontrar coordenadas para "${locationString}".` }); }
         
-        const { latitude: lat, longitude: lon, timezone } = geoResult;
-        
-        const hourFloat = parseFloat(hour);
-        const hours = Math.floor(hourFloat);
-        const minutes = Math.round((hourFloat - hours) * 60);
-
-        const birthTimeLocal = moment.tz({ year, month: month - 1, day, hour: hours, minute: minutes }, timezone);
-        const birthTimeUtc = birthTimeLocal.clone().utc();
-
-        const utcYear = birthTimeUtc.year();
-        const utcMonth = birthTimeUtc.month() + 1;
-        const utcDay = birthTimeUtc.date();
-        const utcHour = birthTimeUtc.hour() + (birthTimeUtc.minute() / 60) + (birthTimeUtc.second() / 3600);
-        
-        const jd_ut_obj = await sweph.utc_to_jd(utcYear, utcMonth, utcDay, utcHour, 0, 0, 1);
+        const jd_ut_obj = await sweph.utc_to_jd(year, month, day, parseFloat(utcHour), 0, 0, 1);
         const julianDay = jd_ut_obj.data[0];
 
         const planetsToCalc = [
@@ -109,20 +69,11 @@ app.post('/calculate', async (req, res) => {
                 }
             }
         }
-        
-        updatePlanetRef(calculatedPlanets);
-        const interpretationIds = {};
-        const planetListForMapping = Object.keys(calculatedPlanets).map(name => ({ name, ...calculatedPlanets[name] }));
-        
-        for (const planet of planetListForMapping) {
-            interpretationIds[planet.name] = mapPlanetToIds(planet, foundAspects);
-        }
 
         const responseData = {
-            message: "Cálculo e mapeamento de planetas e aspectos realizado com sucesso!",
+            message: "Cálculo de planetas e aspectos realizado com sucesso!",
             planets: calculatedPlanets,
-            aspects: foundAspects,
-            interpretationIds: interpretationIds
+            aspects: foundAspects
         };
 
         res.status(200).json(responseData);
@@ -136,11 +87,10 @@ app.post('/calculate', async (req, res) => {
 // =================================================================
 // INICIALIZAÇÃO DO SERVIDOR
 // =================================================================
-async function startServer() {
-    KB = await loadKnowledgeBase();
-    app.listen(PORT, () => {
-        console.log(`Servidor rodando na porta ${PORT}`);
-    });
-}
+app.get('/', (req, res) => {
+    res.send('Servidor astrológico no ar. Use o endpoint POST /calculate para cálculos.');
+});
 
-startServer();
+app.listen(PORT, () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
+});
