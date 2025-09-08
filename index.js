@@ -68,15 +68,9 @@ app.post('/calculate', async (req, res) => {
         const jd_ut_obj = await sweph.utc_to_jd(year, month, day, parseFloat(utcHour), 0, 0, 1);
         const julianDayUT = jd_ut_obj.data[0];
 
-        // Para os planetas, usamos o tempo de efemérides (ET) para máxima precisão
-        const deltaT_obj = await sweph.deltat(julianDayUT);
-        const julianDayET = julianDayUT + deltaT_obj.data;
-
-        // ======================================================
-        // TESTE FINAL: USANDO JULIAN DAY ET PARA AS CASAS
-        // ======================================================
+        // O cálculo das casas usa o Dia Juliano em UT
         const houseSystem = 'P';
-        const housesResult = await sweph.houses(julianDayET, lat, lon, houseSystem);
+        const housesResult = await sweph.houses(julianDayUT, lat, lon, houseSystem);
         
         if (!housesResult || !housesResult.data || !housesResult.data.houses || !housesResult.data.points) {
             throw new Error("Não foi possível calcular as casas astrológicas para esta data/local.");
@@ -92,7 +86,7 @@ app.post('/calculate', async (req, res) => {
                 10: housesResult.data.houses[9], 11: housesResult.data.houses[10], 12: housesResult.data.houses[11]
             }
         };
-        
+
         const planetsToCalc = [
             { id: SE_SUN, name: 'sun' }, { id: SE_MOON, name: 'moon' },
             { id: SE_MERCURY, name: 'mercury' }, { id: SE_VENUS, name: 'venus' },
@@ -104,7 +98,8 @@ app.post('/calculate', async (req, res) => {
 
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
-            const position = await sweph.calc(julianDayET, planet.id, SEFLG_SPEED);
+            // Revertendo para sweph.calc_ut, que funciona corretamente
+            const position = await sweph.calc_ut(julianDayUT, planet.id, SEFLG_SPEED);
             calculatedPlanets[planet.name] = { longitude: position.data[0], latitude: position.data[1], speed: position.data[3] };
         }
 
