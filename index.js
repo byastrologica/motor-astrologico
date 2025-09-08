@@ -6,86 +6,73 @@ const express = require('express');
 const cors = require('cors');
 const sweph = require('sweph');
 const axios = require('axios');
+const moment = require('moment-timezone');
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
     SE_URANUS, SE_NEPTUNE, SE_PLUTO, SE_TRUE_NODE, SEFLG_SPEED
 } = require('./constants');
+const { loadKnowledgeBase } = require('./knowledgeBase');
+const { mapPlanetToIds, updatePlanetRef } = require('./mapper');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(cors());
 
-// Configura o caminho para os arquivos de efemérides da Swiss Ephemeris
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
+let KB; // Variável para a Base de Conhecimento
+
 // =================================================================
-// FUNÇÃO AUXILIAR DA GEOAPIFY (PARA AUTOCOMPLETE)
+// FUNÇÕES AUXILIARES
 // =================================================================
-async function buscarCidade(textoDigitado) {
-    const CHAVE_API = process.env.GEOAPIFY_API_KEY; 
-    if (!CHAVE_API) { throw new Error("Configuração do servidor incompleta."); }
-    const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(textoDigitado)}&lang=pt&limit=5&type=city&format=json&apiKey=${CHAVE_API}`;
+async function geocodeLocation(locationString) {
+    const CHAVE_API = process.env.GEOAPIFY_API_KEY;
+    if (!CHAVE_API) { throw new Error("Chave de API da Geoapify não configurada."); }
+    const url = `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(locationString)}&lang=pt&limit=1&format=json&apiKey=${CHAVE_API}`;
     try {
         const response = await axios.get(url);
-        const dados = response.data;
-        let resultadosLimpos = [];
-        if (dados.results) {
-            resultadosLimpos = dados.results.map(resultado => ({
-                nome_formatado: resultado.formatted,
-                latitude: resultado.lat,
-                longitude: resultado.lon,
-                fuso_horario: resultado.timezone.name
-            }));
+        if (response.data.results && response.data.results.length > 0) {
+            const result = response.data.results[0];
+            return { latitude: result.lat, longitude: result.lon, timezone: result.timezone.name };
         }
-        return resultadosLimpos;
-    } catch (error) { throw new Error("Erro ao comunicar com o serviço de geolocalização."); }
+        return null;
+    } catch (error) {
+        console.error("Erro ao geocodificar localização:", error.message);
+        throw new Error("Erro ao comunicar com o serviço de geocodificação.");
+    }
 }
 
 // =================================================================
-// ENDPOINTS DA API
+// ENDPOINT PRINCIPAL DA API
 // =================================================================
-app.get('/api/cidades', async (req, res) => {
-    const { busca } = req.query;
-    if (!busca || busca.trim().length < 2) { return res.status(400).json({ error: 'Parâmetro "busca" é obrigatório e deve ter ao menos 2 caracteres.' }); }
-    try {
-        const resultados = await buscarCidade(busca);
-        res.status(200).json(resultados);
-    } catch (error) { res.status(500).json({ error: error.message }); }
-});
-
 app.post('/calculate', async (req, res) => {
     try {
-        const { year, month, day, utcHour, latitude, longitude } = req.body;
+        const { year, month, day, hour, locationString } = req.body;
 
-        if (year == null || month == null || day == null || utcHour == null || latitude == null || longitude == null) {
-            return res.status(400).json({ error: 'Dados de entrada incompletos. Forneça year, month, day, utcHour, latitude, longitude.' });
+        if (!year || !month || !day || !hour || !locationString) {
+            return res.status(400).json({ error: 'Dados de entrada incompletos.' });
         }
 
-        const lat = parseFloat(latitude);
-        const lon = parseFloat(longitude);
+        const geoResult = await geocodeLocation(locationString);
+        if (!geoResult) { return res.status(400).json({ error: `Não foi possível encontrar coordenadas para "${locationString}".` }); }
         
-        const jd_ut_obj = await sweph.utc_to_jd(year, month, day, parseFloat(utcHour), 0, 0, 1);
-        const julianDayUT = jd_ut_obj.data[0];
+        const { latitude: lat, longitude: lon, timezone } = geoResult;
+        
+        const hourFloat = parseFloat(hour);
+        const hours = Math.floor(hourFloat);
+        const minutes = Math.round((hourFloat - hours) * 60);
 
-        // O cálculo das casas usa o Dia Juliano em UT
-        const houseSystem = 'P';
-        const housesResult = await sweph.houses(julianDayUT, lat, lon, houseSystem);
+        const birthTimeLocal = moment.tz({ year, month: month - 1, day, hour: hours, minute: minutes }, timezone);
+        const birthTimeUtc = birthTimeLocal.clone().utc();
+
+        const utcYear = birthTimeUtc.year();
+        const utcMonth = birthTimeUtc.month() + 1;
+        const utcDay = birthTimeUtc.date();
+        const utcHour = birthTimeUtc.hour() + (birthTimeUtc.minute() / 60) + (birthTimeUtc.second() / 3600);
         
-        if (!housesResult || !housesResult.data || !housesResult.data.houses || !housesResult.data.points) {
-            throw new Error("Não foi possível calcular as casas astrológicas para esta data/local.");
-        }
-        
-        const calculatedHouses = {
-            ascendant: housesResult.data.points[0],
-            mc: housesResult.data.points[1],
-            cusps: {
-                1: housesResult.data.houses[0], 2: housesResult.data.houses[1], 3: housesResult.data.houses[2],
-                4: housesResult.data.houses[3], 5: housesResult.data.houses[4], 6: housesResult.data.houses[5],
-                7: housesResult.data.houses[6], 8: housesResult.data.houses[7], 9: housesResult.data.houses[8],
-                10: housesResult.data.houses[9], 11: housesResult.data.houses[10], 12: housesResult.data.houses[11]
-            }
-        };
+        const jd_ut_obj = await sweph.utc_to_jd(utcYear, utcMonth, utcDay, utcHour, 0, 0, 1);
+        const julianDay = jd_ut_obj.data[0];
 
         const planetsToCalc = [
             { id: SE_SUN, name: 'sun' }, { id: SE_MOON, name: 'moon' },
@@ -98,8 +85,7 @@ app.post('/calculate', async (req, res) => {
 
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
-            // Revertendo para sweph.calc_ut, que funciona corretamente
-            const position = await sweph.calc_ut(julianDayUT, planet.id, SEFLG_SPEED);
+            const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
             calculatedPlanets[planet.name] = { longitude: position.data[0], latitude: position.data[1], speed: position.data[3] };
         }
 
@@ -123,12 +109,20 @@ app.post('/calculate', async (req, res) => {
                 }
             }
         }
+        
+        updatePlanetRef(calculatedPlanets);
+        const interpretationIds = {};
+        const planetListForMapping = Object.keys(calculatedPlanets).map(name => ({ name, ...calculatedPlanets[name] }));
+        
+        for (const planet of planetListForMapping) {
+            interpretationIds[planet.name] = mapPlanetToIds(planet, foundAspects);
+        }
 
         const responseData = {
-            message: "Cálculo completo do mapa astral realizado com sucesso!",
-            houses: calculatedHouses,
+            message: "Cálculo e mapeamento de planetas e aspectos realizado com sucesso!",
             planets: calculatedPlanets,
-            aspects: foundAspects
+            aspects: foundAspects,
+            interpretationIds: interpretationIds
         };
 
         res.status(200).json(responseData);
@@ -142,11 +136,11 @@ app.post('/calculate', async (req, res) => {
 // =================================================================
 // INICIALIZAÇÃO DO SERVIDOR
 // =================================================================
-app.get('/', (req, res) => {
-    res.send('Servidor astrológico no ar.');
-});
+async function startServer() {
+    KB = await loadKnowledgeBase();
+    app.listen(PORT, () => {
+        console.log(`Servidor rodando na porta ${PORT}`);
+    });
+}
 
-app.listen(PORT, () => {
-    console.log(`Servidor rodando na porta ${PORT}`);
-});
-
+startServer();
