@@ -16,7 +16,7 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(cors());
 
-// Configura o caminho para os arquivos de efemérides da Swiss Ephemeris
+// Configura o caminho para os arquivos de efemérides da biblioteca sweph
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
 // =================================================================
@@ -58,7 +58,6 @@ app.post('/calculate', async (req, res) => {
     try {
         const { year, month, day, utcHour, latitude, longitude } = req.body;
 
-        // Validação final e correta, checando por 'utcHour'
         if (year == null || month == null || day == null || utcHour == null || latitude == null || longitude == null) {
             return res.status(400).json({ error: 'Dados de entrada incompletos. Forneça year, month, day, utcHour, latitude, longitude.' });
         }
@@ -86,9 +85,6 @@ app.post('/calculate', async (req, res) => {
                 10: housesResult.data.houses[9], 11: housesResult.data.houses[10], 12: housesResult.data.houses[11]
             }
         };
-
-        const deltaT_obj = await sweph.deltat(julianDayUT);
-        const julianDayET = julianDayUT + deltaT_obj.data;
         
         const planetsToCalc = [
             { id: SE_SUN, name: 'sun' }, { id: SE_MOON, name: 'moon' },
@@ -101,7 +97,8 @@ app.post('/calculate', async (req, res) => {
 
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
-            const position = await sweph.calc(julianDayET, planet.id, SEFLG_SPEED);
+            // Usando sweph.calc_ut que funciona corretamente
+            const position = await sweph.calc_ut(julianDayUT, planet.id, SEFLG_SPEED);
             calculatedPlanets[planet.name] = { longitude: position.data[0], latitude: position.data[1], speed: position.data[3] };
         }
 
