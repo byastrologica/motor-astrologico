@@ -158,11 +158,16 @@ app.post('/interpret', async (req, res) => {
         **DADOS COMPLETOS DO MAPA ASTRAL:**
         `;
         analysisData.forEach(planet => {
+            // CORREÇÃO FINAL: Checa se o array de aspectos existe antes de usar o .join()
+            const aspectsText = (planet.aspects && planet.aspects.length > 0)
+                ? planet.aspects.join(', ')
+                : 'Nenhum aspecto maior.';
+
             prompt += `
             \n---
             **Planeta: ${planet.name} em ${planet.sign}**
             - **Posicionamento Detalhado:** ${planet.decanate}, com a dwadasamsa em ${planet.dwad}.
-            - **Dinâmicas Internas (Aspectos):** ${planet.aspects.join(', ') || 'Nenhum aspecto maior.'}
+            - **Dinâmicas Internas (Aspectos):** ${aspectsText}
             - **Imagem Arquetípica (Símbolo Sabiano):** "${planet.sabianSymbol}".
             ${planet.degreeNote ? `- **Nota Adicional:** ${planet.degreeNote}` : ''}
             `;
