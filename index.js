@@ -19,10 +19,8 @@ app.use(cors());
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
 // =================================================================
-// BASE DE DADOS E FUNÇÕES DE ANÁLISE ASTROLÓGICA (COM CORREÇÃO)
+// BASE DE DADOS E FUNÇÕES DE ANÁLISE ASTROLÓGICA
 // =================================================================
-
-// Estrutura de dados robusta para os signos
 const ZODIAC_DATA = [
     { key: 'ARIES', name: 'Áries' }, { key: 'TOURO', name: 'Touro' },
     { key: 'GEMEOS', name: 'Gêmeos' }, { key: 'CANCER', name: 'Câncer' },
@@ -42,7 +40,6 @@ const DECANATE_RULERS = {
 const SABIAN_SYMBOLS = {
     ARIES: { 13: "Uma bomba que não explodiu revela que a sociedade está a salvo." },
     CAPRICORNIO: { 14: "Um antigo baixo-relevo esculpido em granito permanece como testemunha de uma longa cultura esquecida." }
-    // NOTA: A base completa dos 360 símbolos seria adicionada aqui.
 };
 
 function getZodiacPosition(longitude) {
@@ -58,14 +55,10 @@ function getZodiacPosition(longitude) {
 function analyzePlanet(planet, allPlanets, allAspects) {
     const { name, longitude } = planet;
     const { signData, degree, fullDegree } = getZodiacPosition(longitude);
-
     const decanateIndex = Math.floor(degree / 10);
-    // CORREÇÃO: Usa a chave sem acento (signData.key) para a busca
     const decanateRuler = DECANATE_RULERS[signData.key][decanateIndex];
-
     const dwadIndex = Math.floor(fullDegree / 2.5);
     const dwadSign = ZODIAC_DATA[(ZODIAC_DATA.indexOf(signData) + dwadIndex) % 12].name;
-
     const aspects = allAspects
         .filter(aspect => aspect.point1 === name || aspect.point2 === name)
         .map(aspect => {
@@ -73,12 +66,10 @@ function analyzePlanet(planet, allPlanets, allAspects) {
             const otherPlanetSign = getZodiacPosition(allPlanets[otherPlanetName].longitude).signData.name;
             return `${aspect.aspect_type.charAt(0).toUpperCase() + aspect.aspect_type.slice(1)} com ${otherPlanetName} em ${otherPlanetSign}`;
         });
-
     let degreeNote = null;
     const sabianDegree = degree + 1;
     if (sabianDegree === 30) degreeNote = "Este planeta está no grau anarético (29 graus).";
     else if ([1, 13, 26].includes(sabianDegree)) degreeNote = "Note que este planeta se encontra em um grau crítico.";
-
     const sabianSymbol = (SABIAN_SYMBOLS[signData.key] && SABIAN_SYMBOLS[signData.key][sabianDegree]) 
         ? SABIAN_SYMBOLS[signData.key][sabianDegree]
         : `Imagem simbólica para o grau ${sabianDegree} de ${signData.name}.`;
@@ -95,61 +86,12 @@ function analyzePlanet(planet, allPlanets, allAspects) {
 }
 
 // =================================================================
-// MOTOR DE INTERPRETAÇÃO COM GEMINI
+// ENDPOINTS DA API
 // =================================================================
-async function getGeminiInterpretation(analysisData) {
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-    if (!GEMINI_API_KEY) { throw new Error("Chave de API do Gemini não configurada."); }
-
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
-
-    let prompt = `
-    Atue como um astrólogo especialista em psicologia profunda, com um estilo de escrita inspirado em Liz Greene. Sua análise deve ser focada em autoconhecimento, não ser fatalista e ter um tom empoderador.
-    Gere uma interpretação psicológica detalhada e coesa para o mapa astral a seguir, tecendo todas as informações de cada planeta em uma narrativa fluida. Inicie com uma introdução geral sobre as energias principais do mapa e depois analise cada planeta individualmente.
-
-    **DADOS COMPLETOS DO MAPA ASTRAL:**
-    `;
-
-    analysisData.forEach(planet => {
-        prompt += `
-        \n---
-        **Planeta: ${planet.name} em ${planet.sign}**
-        - **Posicionamento Detalhado:** ${planet.decanate}, com a dwadasamsa em ${planet.dwad}.
-        - **Dinâmicas Internas (Aspectos):** ${planet.aspects.join(', ') || 'Nenhum aspecto maior.'}
-        - **Imagem Arquetípica (Símbolo Sabiano):** "${planet.sabianSymbol}".
-        ${planet.degreeNote ? `- **Nota Adicional:** ${planet.degreeNote}` : ''}
-        `;
-    });
-
-    const payload = { contents: [{ "parts": [{ "text": prompt.trim() }] }] };
-
+app.post('/analyze', async (req, res) => {
     try {
-        const response = await axios.post(apiUrl, payload);
-        if (response.data.candidates && response.data.candidates[0].content.parts[0].text) {
-            return response.data.candidates[0].content.parts[0].text;
-        }
-        return "A interpretação não pôde ser gerada.";
-    } catch (error) {
-        console.error("================ ERRO DETALHADO DO GEMINI ================");
-        if (error.response) {
-            console.error("Status:", error.response.status);
-            console.error("Data:", JSON.stringify(error.response.data, null, 2));
-        } else {
-            console.error("Error Message:", error.message);
-        }
-        console.error("==========================================================");
-        throw new Error("Falha na comunicação com o serviço de interpretação.");
-    }
-}
-
-// =================================================================
-// ENDPOINT PRINCIPAL DA API
-// =================================================================
-app.post('/calculate', async (req, res) => {
-    try {
-        const { year, month, day, utcHour, latitude, longitude } = req.body;
-
-        if (year == null || month == null || day == null || utcHour == null || latitude == null || longitude == null) {
+        const { year, month, day, utcHour } = req.body;
+        if (year == null || month == null || day == null || utcHour == null) {
             return res.status(400).json({ error: 'Dados de entrada incompletos.' });
         }
         
@@ -163,13 +105,11 @@ app.post('/calculate', async (req, res) => {
             { id: SE_SATURN, name: 'saturn' }, { id: SE_URANUS, name: 'uranus' },
             { id: SE_NEPTUNE, name: 'neptune' }, { id: SE_PLUTO, name: 'pluto' },
         ];
-
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
             const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
             calculatedPlanets[planet.name] = { longitude: position.data[0] };
         }
-
         const aspectsConfig = {
             conjunction: { angle: 0, orb: 10 }, opposition: { angle: 180, orb: 10 },
             trine: { angle: 120, orb: 10 }, square: { angle: 90, orb: 10 }, sextile: { angle: 60, orb: 6 }
@@ -191,18 +131,57 @@ app.post('/calculate', async (req, res) => {
 
         const analysisData = planetPoints.map(p => analyzePlanet(p, calculatedPlanets, foundAspects));
         
-        const interpretation = await getGeminiInterpretation(analysisData);
-
-        const responseData = {
-            message: "Relatório astrológico completo gerado com sucesso!",
-            interpretation: interpretation
-        };
-
-        res.status(200).json(responseData);
+        res.status(200).json({
+            message: "Análise astrológica concluída com sucesso.",
+            analysisData: analysisData
+        });
 
     } catch (error) {
-        console.error("Erro no cálculo:", error);
-        res.status(500).json({ error: 'Erro interno ao realizar o cálculo.', details: error.toString() });
+        console.error("Erro na análise:", error);
+        res.status(500).json({ error: 'Erro interno ao realizar a análise.', details: error.toString() });
+    }
+});
+
+app.post('/interpret', async (req, res) => {
+    try {
+        const { analysisData } = req.body;
+        if (!analysisData) {
+            return res.status(400).json({ error: "Dados de análise ('analysisData') não fornecidos." });
+        }
+        const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+        if (!GEMINI_API_KEY) { throw new Error("Chave de API do Gemini não configurada."); }
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
+        
+        let prompt = `
+        Atue como um astrólogo especialista em psicologia profunda, com um estilo de escrita inspirado em Liz Greene. Sua análise deve ser focada em autoconhecimento, não ser fatalista e ter um tom empoderador.
+        Gere uma interpretação psicológica detalhada e coesa para o mapa astral a seguir, tecendo todas as informações de cada planeta em uma narrativa fluida. Inicie com uma introdução geral sobre as energias principais do mapa e depois analise cada planeta individualmente.
+        **DADOS COMPLETOS DO MAPA ASTRAL:**
+        `;
+        analysisData.forEach(planet => {
+            prompt += `
+            \n---
+            **Planeta: ${planet.name} em ${planet.sign}**
+            - **Posicionamento Detalhado:** ${planet.decanate}, com a dwadasamsa em ${planet.dwad}.
+            - **Dinâmicas Internas (Aspectos):** ${planet.aspects.join(', ') || 'Nenhum aspecto maior.'}
+            - **Imagem Arquetípica (Símbolo Sabiano):** "${planet.sabianSymbol}".
+            ${planet.degreeNote ? `- **Nota Adicional:** ${planet.degreeNote}` : ''}
+            `;
+        });
+        
+        const payload = { contents: [{ "parts": [{ "text": prompt.trim() }] }] };
+        const response = await axios.post(apiUrl, payload);
+        
+        if (response.data.candidates && response.data.candidates[0].content.parts[0].text) {
+            res.status(200).json({
+                message: "Interpretação gerada com sucesso!",
+                interpretation: response.data.candidates[0].content.parts[0].text
+            });
+        } else {
+            throw new Error("Resposta do Gemini não continha texto de interpretação.");
+        }
+    } catch (error) {
+        console.error("Erro na interpretação:", error);
+        res.status(500).json({ error: 'Erro interno ao gerar a interpretação.', details: error.toString() });
     }
 });
 
