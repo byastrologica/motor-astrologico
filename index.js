@@ -5,6 +5,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const sweph = require('sweph');
+const axios = require('axios');
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
     SE_URANUS, SE_NEPTUNE, SE_PLUTO, SE_TRUE_NODE, SEFLG_SPEED
@@ -19,22 +20,79 @@ app.use(cors());
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
 // =================================================================
-// ENDPOINT PRINCIPAL DA API
+// FUNÇÃO AUXILIAR DA GEOAPIFY (PARA AUTOCOMPLETE)
 // =================================================================
+async function buscarCidade(textoDigitado) {
+    const CHAVE_API = process.env.GEOAPIFY_API_KEY; 
+    if (!CHAVE_API) { throw new Error("Configuração do servidor incompleta."); }
+    const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(textoDigitado)}&lang=pt&limit=5&type=city&format=json&apiKey=${CHAVE_API}`;
+    try {
+        const response = await axios.get(url);
+        const dados = response.data;
+        let resultadosLimpos = [];
+        if (dados.results) {
+            resultadosLimpos = dados.results.map(resultado => ({
+                nome_formatado: resultado.formatted,
+                latitude: resultado.lat,
+                longitude: resultado.lon,
+                fuso_horario: resultado.timezone.name
+            }));
+        }
+        return resultadosLimpos;
+    } catch (error) { throw new Error("Erro ao comunicar com o serviço de geolocalização."); }
+}
+
+// =================================================================
+// ENDPOINTS DA API
+// =================================================================
+app.get('/api/cidades', async (req, res) => {
+    const { busca } = req.query;
+    if (!busca || busca.trim().length < 2) { return res.status(400).json({ error: 'Parâmetro "busca" é obrigatório e deve ter ao menos 2 caracteres.' }); }
+    try {
+        const resultados = await buscarCidade(busca);
+        res.status(200).json(resultados);
+    } catch (error) { res.status(500).json({ error: error.message }); }
+});
 
 app.post('/calculate', async (req, res) => {
     try {
-        // A API agora espera apenas os dados puros para o cálculo
         const { year, month, day, utcHour, latitude, longitude } = req.body;
 
-        // Validação final e correta, checando pelos campos corretos
         if (year == null || month == null || day == null || utcHour == null || latitude == null || longitude == null) {
             return res.status(400).json({ error: 'Dados de entrada incompletos. Forneça year, month, day, utcHour, latitude, longitude.' });
         }
+
+        const lat = parseFloat(latitude);
+        const lon = parseFloat(longitude);
         
         const jd_ut_obj = await sweph.utc_to_jd(year, month, day, parseFloat(utcHour), 0, 0, 1);
-        const julianDay = jd_ut_obj.data[0];
+        const julianDayUT = jd_ut_obj.data[0];
 
+        // Para os planetas, usamos o tempo de efemérides (ET) para máxima precisão
+        const deltaT_obj = await sweph.deltat(julianDayUT);
+        const julianDayET = julianDayUT + deltaT_obj.data;
+
+        // ======================================================
+        // TESTE FINAL: USANDO JULIAN DAY ET PARA AS CASAS
+        // ======================================================
+        const houseSystem = 'P';
+        const housesResult = await sweph.houses(julianDayET, lat, lon, houseSystem);
+        
+        if (!housesResult || !housesResult.data || !housesResult.data.houses || !housesResult.data.points) {
+            throw new Error("Não foi possível calcular as casas astrológicas para esta data/local.");
+        }
+        
+        const calculatedHouses = {
+            ascendant: housesResult.data.points[0],
+            mc: housesResult.data.points[1],
+            cusps: {
+                1: housesResult.data.houses[0], 2: housesResult.data.houses[1], 3: housesResult.data.houses[2],
+                4: housesResult.data.houses[3], 5: housesResult.data.houses[4], 6: housesResult.data.houses[5],
+                7: housesResult.data.houses[6], 8: housesResult.data.houses[7], 9: housesResult.data.houses[8],
+                10: housesResult.data.houses[9], 11: housesResult.data.houses[10], 12: housesResult.data.houses[11]
+            }
+        };
+        
         const planetsToCalc = [
             { id: SE_SUN, name: 'sun' }, { id: SE_MOON, name: 'moon' },
             { id: SE_MERCURY, name: 'mercury' }, { id: SE_VENUS, name: 'venus' },
@@ -46,7 +104,7 @@ app.post('/calculate', async (req, res) => {
 
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
-            const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
+            const position = await sweph.calc(julianDayET, planet.id, SEFLG_SPEED);
             calculatedPlanets[planet.name] = { longitude: position.data[0], latitude: position.data[1], speed: position.data[3] };
         }
 
@@ -72,7 +130,8 @@ app.post('/calculate', async (req, res) => {
         }
 
         const responseData = {
-            message: "Cálculo de planetas e aspectos realizado com sucesso!",
+            message: "Cálculo completo do mapa astral realizado com sucesso!",
+            houses: calculatedHouses,
             planets: calculatedPlanets,
             aspects: foundAspects
         };
@@ -89,7 +148,7 @@ app.post('/calculate', async (req, res) => {
 // INICIALIZAÇÃO DO SERVIDOR
 // =================================================================
 app.get('/', (req, res) => {
-    res.send('Servidor astrológico no ar. Use o endpoint POST /calculate para cálculos.');
+    res.send('Servidor astrológico no ar.');
 });
 
 app.listen(PORT, () => {
