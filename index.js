@@ -158,11 +158,9 @@ app.post('/interpret', async (req, res) => {
         **DADOS COMPLETOS DO MAPA ASTRAL:**
         `;
         analysisData.forEach(planet => {
-            // CORREÇÃO FINAL: Checa se o array de aspectos existe antes de usar o .join()
             const aspectsText = (planet.aspects && planet.aspects.length > 0)
                 ? planet.aspects.join(', ')
                 : 'Nenhum aspecto maior.';
-
             prompt += `
             \n---
             **Planeta: ${planet.name} em ${planet.sign}**
@@ -172,6 +170,13 @@ app.post('/interpret', async (req, res) => {
             ${planet.degreeNote ? `- **Nota Adicional:** ${planet.degreeNote}` : ''}
             `;
         });
+        
+        // ======================================================
+        // LOG DE DIAGNÓSTICO DO PROMPT
+        // ======================================================
+        console.log("--- PROMPT ENVIADO AO GEMINI ---");
+        console.log(prompt.trim());
+        console.log("---------------------------------");
         
         const payload = { contents: [{ "parts": [{ "text": prompt.trim() }] }] };
         const response = await axios.post(apiUrl, payload);
