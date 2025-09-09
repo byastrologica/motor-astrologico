@@ -3,12 +3,14 @@ const express = require('express');
 const cors = require('cors');
 const sweph = require('sweph');
 const axios = require('axios');
+const moment = require('moment-timezone');
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
     SE_URANUS, SE_NEPTUNE, SE_PLUTO, SEFLG_SPEED
 } = require('./constants');
 const { loadKnowledgeBase } = require('./knowledgeBase');
 const { mapPlanetToIds, updatePlanetRef } = require('./mapper');
+const { generateFinalReport } = require('./reportBuilder');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,7 +19,7 @@ app.use(cors());
 
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
-let KB; // Base de Conhecimento será carregada na inicialização
+let KB;
 
 // =================================================================
 // FLUXO 1: Calcular e Mapear
@@ -142,6 +144,7 @@ app.post('/unify-report', async (req, res) => {
         res.status(500).json({ error: 'Erro interno na unificação com Gemini.', details: error.toString() });
     }
 });
+
 
 // =================================================================
 // INICIALIZAÇÃO DO SERVIDOR
