@@ -29,12 +29,11 @@ function mapPlanetToIds(planet, aspects) {
     const { name, longitude } = planet;
     const { name: signName, degree } = getZodiacSign(longitude);
     
-    // Usa os dicionários de tradução
     const planetId = PLANET_ID_MAP[name];
 
     // Gera os IDs no formato correto do CSV
     const planetSignId = `${planetId}_${signName}`;
-    const sabianSymbolId = `${signName}_${degree}`; // Assumindo formato SIGNO_GRAU
+    const sabianSymbolId = `${signName}_${degree}`; // Formato: SIGNO_GRAU
     
     const aspectIds = aspects
         .filter(aspect => aspect.point1 === name || aspect.point2 === name)
