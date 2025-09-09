@@ -3,14 +3,12 @@ const express = require('express');
 const cors = require('cors');
 const sweph = require('sweph');
 const axios = require('axios');
-const moment = require('moment-timezone');
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
     SE_URANUS, SE_NEPTUNE, SE_PLUTO, SEFLG_SPEED
 } = require('./constants');
 const { loadKnowledgeBase } = require('./knowledgeBase');
 const { mapPlanetToIds, updatePlanetRef } = require('./mapper');
-const { generateFinalReport } = require('./reportBuilder');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -19,7 +17,7 @@ app.use(cors());
 
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
-let KB;
+let KB; // Base de Conhecimento será carregada na inicialização
 
 // =================================================================
 // FLUXO 1: Calcular e Mapear
@@ -90,11 +88,11 @@ app.post('/lookup-texts', (req, res) => {
         let rawTexts = "";
         mappedData.forEach(planetData => {
             rawTexts += `**Para o planeta ${planetData.planetName}:**\n`;
-            rawTexts += `- **No signo:** ${KB.PlanetasEmSigno.get(planetData.planetSignId) || 'Texto não encontrado.'}\n`;
+            rawTexts += `- **No signo:** ${KB.PlanetasEmSigno.get(planetData.planetSignId) || ''}\n`;
             planetData.aspectIds.forEach(aspectId => {
-                rawTexts += `- **Em aspecto:** ${KB.Aspectos.get(aspectId) || 'Texto não encontrado.'}\n`;
+                rawTexts += `- **Em aspecto:** ${KB.Aspectos.get(aspectId) || ''}\n`;
             });
-            rawTexts += `- **Símbolo Sabiano:** ${KB.SignoEmGrau.get(planetData.sabianSymbolId) || 'Texto não encontrado.'}\n\n`;
+            rawTexts += `- **Símbolo Sabiano:** ${KB.SignoEmGrau.get(planetData.sabianSymbolId) || ''}\n\n`;
         });
 
         res.status(200).json({
@@ -145,12 +143,11 @@ app.post('/unify-report', async (req, res) => {
     }
 });
 
-
 // =================================================================
 // INICIALIZAÇÃO DO SERVIDOR
 // =================================================================
 async function startServer() {
-    KB = await loadKnowledgeBase();
+    KB = await loadKnowledgeBase(); // Carrega a base de conhecimento na inicialização
     app.listen(PORT, () => {
         console.log(`Servidor rodando na porta ${PORT}`);
     });
