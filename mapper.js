@@ -1,4 +1,8 @@
-// Dicionários de Tradução para alinhar com os IDs dos CSVs
+const ZODIAC_SIGNS = [
+    'ARIES', 'TOURO', 'GEMEOS', 'CANCER', 'LEAO', 'VIRGEM',
+    'LIBRA', 'ESCORPIAO', 'SAGITARIO', 'CAPRICORNIO', 'AQUARIO', 'PEIXES'
+];
+
 const PLANET_ID_MAP = {
     sun: 'SOL', moon: 'LUA', mercury: 'MERCURIO', venus: 'VENUS', mars: 'MARTE',
     jupiter: 'JUPITER', saturn: 'SATURNO', uranus: 'URANO', neptune: 'NETUNO', pluto: 'PLUTAO'
@@ -8,11 +12,6 @@ const ASPECT_ID_MAP = {
     conjunction: 'CONJ', opposition: 'OPOS', trine: 'TRIGO',
     square: 'QUAD', sextile: 'SEXT'
 };
-
-const ZODIAC_SIGNS = [
-    'ARIES', 'TOURO', 'GEMEOS', 'CANCER', 'LEAO', 'VIRGEM',
-    'LIBRA', 'ESCORPIAO', 'SAGITARIO', 'CAPRICORNIO', 'AQUARIO', 'PEIXES'
-];
 
 let calculatedPlanetsRef = {};
 
@@ -31,9 +30,8 @@ function mapPlanetToIds(planet, aspects) {
     
     const planetId = PLANET_ID_MAP[name];
 
-    // Gera os IDs no formato correto do CSV
     const planetSignId = `${planetId}_${signName}`;
-    const sabianSymbolId = `${signName}_${degree}`; // Formato: SIGNO_GRAU
+    const sabianSymbolId = `${signName}_${degree}`;
     
     const aspectIds = aspects
         .filter(aspect => aspect.point1 === name || aspect.point2 === name)
@@ -43,8 +41,7 @@ function mapPlanetToIds(planet, aspects) {
             const aspectId = ASPECT_ID_MAP[aspect.aspect_type];
             
             if (!planetId || !otherPlanetId || !aspectId) return null;
-
-            // Formato: PLANETA1_ASPECTO_PLANETA2 (ex: SOL_CONJ_LUA)
+            
             return `${planetId}_${aspectId}_${otherPlanetId}`;
         })
         .filter(id => id);
