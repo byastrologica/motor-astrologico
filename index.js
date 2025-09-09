@@ -94,7 +94,6 @@ app.post('/lookup-texts', (req, res) => {
             planetData.aspectIds.forEach(aspectId => {
                 rawTexts += `- **Em aspecto:** ${KB.Aspectos.get(aspectId) || ''}\n`;
             });
-            // O seu print do GitHub mostra um arquivo SignoEmGrau.csv
             rawTexts += `- **Símbolo Sabiano:** ${KB.SignoEmGrau.get(planetData.sabianSymbolId) || ''}\n\n`;
         });
 
@@ -145,6 +144,7 @@ app.post('/unify-report', async (req, res) => {
         res.status(500).json({ error: 'Erro interno na unificação com Gemini.', details: error.toString() });
     }
 });
+
 
 // =================================================================
 // INICIALIZAÇÃO DO SERVIDOR
