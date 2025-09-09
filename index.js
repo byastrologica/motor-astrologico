@@ -17,8 +17,6 @@ app.use(cors());
 
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
-// A variável KB não é mais carregada globalmente na inicialização.
-
 // =================================================================
 // FLUXO 1: Calcular e Mapear
 // =================================================================
@@ -88,9 +86,8 @@ app.post('/lookup-texts', async (req, res) => { // A função agora é async
         // Carrega a base de conhecimento sob demanda
         const KB = await loadKnowledgeBase();
 
-        // Verifica se os arquivos essenciais foram carregados
-        if (!KB.PlanetasEmSigno || !KB.Aspectos || !KB.SimbolosSabianos) {
-            throw new Error("A base de conhecimento não foi carregada corretamente. Verifique os arquivos .csv na pasta 'knowledge_base'.");
+        if (!KB || Object.keys(KB).length === 0) {
+             throw new Error("A base de conhecimento está vazia ou não foi carregada. Verifique a pasta 'knowledge_base' e os arquivos .csv.");
         }
 
         let rawTexts = "";
@@ -100,7 +97,9 @@ app.post('/lookup-texts', async (req, res) => { // A função agora é async
             planetData.aspectIds.forEach(aspectId => {
                 rawTexts += `- **Em aspecto:** ${KB.Aspectos.get(aspectId) || 'Texto não encontrado.'}\n`;
             });
-            rawTexts += `- **Símbolo Sabiano:** ${KB.SimbolosSabianos.get(planetData.sabianSymbolId) || 'Texto não encontrado.'}\n\n`;
+            // O seu print do GitHub não mostra um arquivo SimbolosSabianos.csv, então comentei esta linha.
+            // Se você adicionar o arquivo, pode descomentar a linha abaixo.
+            // rawTexts += `- **Símbolo Sabiano:** ${KB.SimbolosSabianos.get(planetData.sabianSymbolId) || 'Texto não encontrado.'}\n\n`;
         });
 
         res.status(200).json({
