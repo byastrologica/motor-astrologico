@@ -3,14 +3,12 @@ const express = require('express');
 const cors = require('cors');
 const sweph = require('sweph');
 const axios = require('axios');
-const moment = require('moment-timezone');
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
     SE_URANUS, SE_NEPTUNE, SE_PLUTO, SEFLG_SPEED
 } = require('./constants');
 const { loadKnowledgeBase } = require('./knowledgeBase');
 const { mapPlanetToIds, updatePlanetRef } = require('./mapper');
-const { generateFinalReport } = require('./reportBuilder');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -21,10 +19,13 @@ sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
 let KB;
 
-app.post('/calculate', async (req, res) => {
+// =================================================================
+// FLUXO 1: Calcular e Mapear
+// =================================================================
+app.post('/analyze', async (req, res) => {
     try {
-        const { year, month, day, utcHour, latitude, longitude } = req.body;
-        if (!year || !month || !day || !utcHour || !latitude || !longitude) {
+        const { year, month, day, utcHour } = req.body;
+        if (!year || !month || !day || !utcHour) {
             return res.status(400).json({ error: 'Dados de entrada incompletos.' });
         }
         
@@ -61,25 +62,92 @@ app.post('/calculate', async (req, res) => {
                 }
             }
         }
-
         updatePlanetRef(calculatedPlanets);
         const mappedData = planetPoints.map(p => mapPlanetToIds(p, foundAspects));
-
-        const interpretation = await generateFinalReport(mappedData, KB);
-
-        const responseData = {
-            message: "Relatório astrológico híbrido gerado com sucesso!",
-            interpretation: interpretation
-        };
-
-        res.status(200).json(responseData);
+        
+        res.status(200).json({
+            message: "Análise e mapeamento concluídos com sucesso.",
+            mappedData: mappedData
+        });
 
     } catch (error) {
-        console.error("Erro no cálculo:", error);
-        res.status(500).json({ error: 'Erro interno ao realizar o cálculo.', details: error.toString() });
+        res.status(500).json({ error: 'Erro interno na análise.', details: error.toString() });
     }
 });
 
+// =================================================================
+// FLUXO 2: Buscar Textos na Base de Conhecimento
+// =================================================================
+app.post('/lookup-texts', (req, res) => {
+    try {
+        const { mappedData } = req.body;
+        if (!mappedData) {
+            return res.status(400).json({ error: "Dados mapeados ('mappedData') não fornecidos." });
+        }
+        
+        const rawTexts = [];
+        mappedData.forEach(planetData => {
+            let planetText = `**Para o planeta ${planetData.planetName}:**\n`;
+            planetText += `- **No signo:** ${KB.PlanetasEmSigno.get(planetData.planetSignId) || ''}\n`;
+            planetData.aspectIds.forEach(aspectId => {
+                planetText += `- **Em aspecto:** ${KB.Aspectos.get(aspectId) || ''}\n`;
+            });
+            planetText += `- **Símbolo Sabiano:** ${KB.SimbolosSabianos.get(planetData.sabianSymbolId) || ''}\n`;
+            rawTexts.push(planetText);
+        });
+
+        res.status(200).json({
+            message: "Textos da base de conhecimento recuperados com sucesso.",
+            rawTexts: rawTexts.join('\n')
+        });
+
+    } catch (error) {
+        res.status(500).json({ error: 'Erro interno na busca de textos.', details: error.toString() });
+    }
+});
+
+// =================================================================
+// FLUXO 3: Unificar com Gemini
+// =================================================================
+app.post('/unify-report', async (req, res) => {
+    try {
+        const { rawTexts } = req.body;
+        if (!rawTexts) {
+            return res.status(400).json({ error: "Textos brutos ('rawTexts') não fornecidos." });
+        }
+        const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+        if (!GEMINI_API_KEY) { throw new Error("Chave de API do Gemini não configurada."); }
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
+        
+        const prompt = `
+        Atue como um astrólogo especialista em psicologia profunda, com um estilo de escrita inspirado em Liz Greene. Sua análise deve ser focada em autoconhecimento, não ser fatalista e ter um tom empoderador.
+    
+        A seguir estão blocos de texto que representam interpretações astrológicas isoladas para um mapa astral. Sua tarefa é atuar como um editor final: reescreva e costure esses blocos em uma narrativa fluida, coesa e unificada. Adicione uma introdução geral, uma conclusão e sugestões práticas para o desenvolvimento pessoal ao longo do texto. Não apenas liste os textos, transforme-os em um relatório completo e inspirador.
+
+        **TEXTOS BASE PARA A ANÁLISE:**
+        ${rawTexts}
+        `;
+
+        const payload = { contents: [{ "parts": [{ "text": prompt.trim() }] }] };
+        const response = await axios.post(apiUrl, payload);
+        
+        if (response.data.candidates && response.data.candidates[0].content.parts[0].text) {
+            res.status(200).json({
+                message: "Relatório final gerado com sucesso!",
+                interpretation: response.data.candidates[0].content.parts[0].text
+            });
+        } else {
+            throw new Error("Resposta do Gemini não continha texto de interpretação.");
+        }
+    } catch (error) {
+        res.status(500).json({ error: 'Erro interno na unificação com Gemini.', details: error.toString() });
+    }
+});
+
+
+// =================================================================
+// INICIALIZAÇÃO DO SERVIDOR
+// =================================================================
 async function startServer() {
     KB = await loadKnowledgeBase();
     app.listen(PORT, () => {
