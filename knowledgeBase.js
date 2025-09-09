@@ -13,10 +13,11 @@ function loadCsvToMap(filePath) {
                 }
             })
             .on('end', () => {
+                console.log(`Arquivo CSV carregado: ${path.basename(filePath)}`);
                 resolve(map);
             })
             .on('error', (error) => {
-                reject(error);
+                reject(`Erro ao ler o arquivo ${filePath}: ${error.message}`);
             });
     });
 }
@@ -31,10 +32,10 @@ async function loadKnowledgeBase() {
             const mapName = path.basename(file, '.csv');
             knowledgeBase[mapName] = await loadCsvToMap(filePath);
         }
-        console.log("Base de Conhecimento carregada sob demanda com sucesso.");
+        console.log("Base de Conhecimento carregada com sucesso.");
         return knowledgeBase;
     } catch (error) {
-        console.error(`ERRO ao carregar a Base de Conhecimento:`, error);
+        console.warn(`AVISO: A pasta 'knowledge_base' não foi encontrada ou está vazia.`);
         return {};
     }
 }
