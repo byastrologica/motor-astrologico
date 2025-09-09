@@ -8,8 +8,12 @@ function loadCsvToMap(filePath) {
         fs.createReadStream(filePath)
             .pipe(csv())
             .on('data', (row) => {
-                if (row.id_unico && row.texto) {
-                    map.set(row.id_unico.trim(), row.texto.trim());
+                // Lógica robusta para encontrar a chave e o valor
+                const key = row.id_unico || row.id_regente || row.id_signo || row.id_grau || row.id_frase;
+                const value = row.texto_interpretacao || row.texto_influencia || row.texto_motivacao_interna || row.texto_simbolo || row.texto_conectivo;
+
+                if (key && value) {
+                    map.set(String(key).trim(), String(value).trim());
                 }
             })
             .on('end', () => {
@@ -29,6 +33,7 @@ async function loadKnowledgeBase() {
         const files = fs.readdirSync(kbPath).filter(file => file.endsWith('.csv'));
         for (const file of files) {
             const filePath = path.join(kbPath, file);
+            // Usa o nome do arquivo (sem .csv) como a chave no objeto KB
             const mapName = path.basename(file, '.csv');
             knowledgeBase[mapName] = await loadCsvToMap(filePath);
         }
