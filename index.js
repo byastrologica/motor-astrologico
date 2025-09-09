@@ -3,12 +3,14 @@ const express = require('express');
 const cors = require('cors');
 const sweph = require('sweph');
 const axios = require('axios');
+const moment = require('moment-timezone');
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
     SE_URANUS, SE_NEPTUNE, SE_PLUTO, SEFLG_SPEED
 } = require('./constants');
 const { loadKnowledgeBase } = require('./knowledgeBase');
 const { mapPlanetToIds, updatePlanetRef } = require('./mapper');
+const { generateFinalReport } = require('./reportBuilder');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -85,20 +87,19 @@ app.post('/lookup-texts', (req, res) => {
             return res.status(400).json({ error: "Dados mapeados ('mappedData') não fornecidos." });
         }
         
-        const rawTexts = [];
+        let rawTexts = "";
         mappedData.forEach(planetData => {
-            let planetText = `**Para o planeta ${planetData.planetName}:**\n`;
-            planetText += `- **No signo:** ${KB.PlanetasEmSigno.get(planetData.planetSignId) || ''}\n`;
+            rawTexts += `**Para o planeta ${planetData.planetName}:**\n`;
+            rawTexts += `- **No signo:** ${KB.PlanetasEmSigno.get(planetData.planetSignId) || ''}\n`;
             planetData.aspectIds.forEach(aspectId => {
-                planetText += `- **Em aspecto:** ${KB.Aspectos.get(aspectId) || ''}\n`;
+                rawTexts += `- **Em aspecto:** ${KB.Aspectos.get(aspectId) || ''}\n`;
             });
-            planetText += `- **Símbolo Sabiano:** ${KB.SimbolosSabianos.get(planetData.sabianSymbolId) || ''}\n`;
-            rawTexts.push(planetText);
+            rawTexts += `- **Símbolo Sabiano:** ${KB.SimbolosSabianos.get(planetData.sabianSymbolId) || ''}\n\n`;
         });
 
         res.status(200).json({
             message: "Textos da base de conhecimento recuperados com sucesso.",
-            rawTexts: rawTexts.join('\n')
+            rawTexts: rawTexts.trim()
         });
 
     } catch (error) {
@@ -144,10 +145,6 @@ app.post('/unify-report', async (req, res) => {
     }
 });
 
-
-// =================================================================
-// INICIALIZAÇÃO DO SERVIDOR
-// =================================================================
 async function startServer() {
     KB = await loadKnowledgeBase();
     app.listen(PORT, () => {
