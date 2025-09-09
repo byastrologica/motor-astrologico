@@ -146,10 +146,6 @@ app.post('/unify-report', async (req, res) => {
     }
 });
 
-
-// =================================================================
-// INICIALIZAÇÃO DO SERVIDOR
-// =================================================================
 async function startServer() {
     KB = await loadKnowledgeBase();
     app.listen(PORT, () => {
