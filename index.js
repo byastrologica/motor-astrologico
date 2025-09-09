@@ -90,11 +90,11 @@ app.post('/lookup-texts', (req, res) => {
         let rawTexts = "";
         mappedData.forEach(planetData => {
             rawTexts += `**Para o planeta ${planetData.planetName}:**\n`;
-            rawTexts += `- **No signo:** ${KB.PlanetasEmSigno.get(planetData.planetSignId) || ''}\n`;
+            rawTexts += `- **No signo:** ${KB.PlanetasEmSigno.get(planetData.planetSignId) || 'Texto não encontrado.'}\n`;
             planetData.aspectIds.forEach(aspectId => {
-                rawTexts += `- **Em aspecto:** ${KB.Aspectos.get(aspectId) || ''}\n`;
+                rawTexts += `- **Em aspecto:** ${KB.Aspectos.get(aspectId) || 'Texto não encontrado.'}\n`;
             });
-            rawTexts += `- **Símbolo Sabiano:** ${KB.SignoEmGrau.get(planetData.sabianSymbolId) || ''}\n\n`;
+            rawTexts += `- **Símbolo Sabiano:** ${KB.SignoEmGrau.get(planetData.sabianSymbolId) || 'Texto não encontrado.'}\n\n`;
         });
 
         res.status(200).json({
