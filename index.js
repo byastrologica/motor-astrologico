@@ -94,6 +94,7 @@ app.post('/lookup-texts', (req, res) => {
             planetData.aspectIds.forEach(aspectId => {
                 rawTexts += `- **Em aspecto:** ${KB.Aspectos.get(aspectId) || ''}\n`;
             });
+            // Assumindo que você terá um arquivo SimbolosSabianos.csv
             rawTexts += `- **Símbolo Sabiano:** ${KB.SimbolosSabianos.get(planetData.sabianSymbolId) || ''}\n\n`;
         });
 
@@ -145,6 +146,10 @@ app.post('/unify-report', async (req, res) => {
     }
 });
 
+
+// =================================================================
+// INICIALIZAÇÃO DO SERVIDOR
+// =================================================================
 async function startServer() {
     KB = await loadKnowledgeBase();
     app.listen(PORT, () => {
