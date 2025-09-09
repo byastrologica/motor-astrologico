@@ -88,14 +88,19 @@ app.post('/lookup-texts', async (req, res) => { // A função agora é async
         // Carrega a base de conhecimento sob demanda
         const KB = await loadKnowledgeBase();
 
+        // Verifica se os arquivos essenciais foram carregados
+        if (!KB.PlanetasEmSigno || !KB.Aspectos || !KB.SimbolosSabianos) {
+            throw new Error("A base de conhecimento não foi carregada corretamente. Verifique os arquivos .csv na pasta 'knowledge_base'.");
+        }
+
         let rawTexts = "";
         mappedData.forEach(planetData => {
             rawTexts += `**Para o planeta ${planetData.planetName}:**\n`;
-            rawTexts += `- **No signo:** ${KB.PlanetasEmSigno.get(planetData.planetSignId) || ''}\n`;
+            rawTexts += `- **No signo:** ${KB.PlanetasEmSigno.get(planetData.planetSignId) || 'Texto não encontrado.'}\n`;
             planetData.aspectIds.forEach(aspectId => {
-                rawTexts += `- **Em aspecto:** ${KB.Aspectos.get(aspectId) || ''}\n`;
+                rawTexts += `- **Em aspecto:** ${KB.Aspectos.get(aspectId) || 'Texto não encontrado.'}\n`;
             });
-            rawTexts += `- **Símbolo Sabiano:** ${KB.SimbolosSabianos.get(planetData.sabianSymbolId) || ''}\n\n`;
+            rawTexts += `- **Símbolo Sabiano:** ${KB.SimbolosSabianos.get(planetData.sabianSymbolId) || 'Texto não encontrado.'}\n\n`;
         });
 
         res.status(200).json({
