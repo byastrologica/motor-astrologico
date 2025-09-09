@@ -42,7 +42,7 @@ function mapPlanetToIds(planet, aspects) {
             const otherPlanetId = PLANET_ID_MAP[otherPlanetName];
             const aspectId = ASPECT_ID_MAP[aspect.aspect_type];
             
-            if (!otherPlanetId || !aspectId) return null;
+            if (!planetId || !otherPlanetId || !aspectId) return null;
 
             // Formato: PLANETA1_ASPECTO_PLANETA2 (ex: SOL_CONJ_LUA)
             return `${planetId}_${aspectId}_${otherPlanetId}`;
