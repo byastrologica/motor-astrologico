@@ -3,14 +3,12 @@ const express = require('express');
 const cors = require('cors');
 const sweph = require('sweph');
 const axios = require('axios');
-const moment = require('moment-timezone');
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
     SE_URANUS, SE_NEPTUNE, SE_PLUTO, SEFLG_SPEED
 } = require('./constants');
 const { loadKnowledgeBase } = require('./knowledgeBase');
 const { mapPlanetToIds, updatePlanetRef } = require('./mapper');
-const { generateFinalReport } = require('./reportBuilder');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -19,7 +17,7 @@ app.use(cors());
 
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
-let KB;
+// A variável KB não é mais carregada globalmente na inicialização.
 
 // =================================================================
 // FLUXO 1: Calcular e Mapear
@@ -78,15 +76,18 @@ app.post('/analyze', async (req, res) => {
 });
 
 // =================================================================
-// FLUXO 2: Buscar Textos na Base de Conhecimento
+// FLUXO 2: Buscar Textos na Base de Conhecimento (Lógica Corrigida)
 // =================================================================
-app.post('/lookup-texts', (req, res) => {
+app.post('/lookup-texts', async (req, res) => { // A função agora é async
     try {
         const { mappedData } = req.body;
         if (!mappedData) {
             return res.status(400).json({ error: "Dados mapeados ('mappedData') não fornecidos." });
         }
         
+        // Carrega a base de conhecimento sob demanda
+        const KB = await loadKnowledgeBase();
+
         let rawTexts = "";
         mappedData.forEach(planetData => {
             rawTexts += `**Para o planeta ${planetData.planetName}:**\n`;
@@ -94,7 +95,6 @@ app.post('/lookup-texts', (req, res) => {
             planetData.aspectIds.forEach(aspectId => {
                 rawTexts += `- **Em aspecto:** ${KB.Aspectos.get(aspectId) || ''}\n`;
             });
-            // Assumindo que você terá um arquivo SimbolosSabianos.csv
             rawTexts += `- **Símbolo Sabiano:** ${KB.SimbolosSabianos.get(planetData.sabianSymbolId) || ''}\n\n`;
         });
 
@@ -146,11 +146,9 @@ app.post('/unify-report', async (req, res) => {
     }
 });
 
-async function startServer() {
-    KB = await loadKnowledgeBase();
-    app.listen(PORT, () => {
-        console.log(`Servidor rodando na porta ${PORT}`);
-    });
-}
-
-startServer();
+// =================================================================
+// INICIALIZAÇÃO DO SERVIDOR (Simplificada)
+// =================================================================
+app.listen(PORT, () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
+});
