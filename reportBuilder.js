@@ -13,13 +13,13 @@ async function generateFinalReport(mappedData, KB) {
     let rawTexts = "";
     mappedData.forEach(planetData => {
         rawTexts += `**Para o planeta ${planetData.planetName}:**\n`;
-        // CORREÇÃO: Usa os nomes de arquivo em português, como estão no seu repositório
+        // CORREÇÃO: Usa os nomes de arquivo corretos (ex: KB.PlanetasEmSigno)
         rawTexts += `- **No signo:** ${getText(KB.PlanetasEmSigno, planetData.planetSignId)}\n`;
         planetData.aspectIds.forEach(aspectId => {
             rawTexts += `- **Em aspecto:** ${getText(KB.Aspectos, aspectId)}\n`;
         });
-        // Assumindo que você terá um arquivo SimbolosSabianos.csv
-        rawTexts += `- **Símbolo Sabiano:** ${getText(KB.SimbolosSabianos, planetData.sabianSymbolId)}\n\n`;
+        // CORREÇÃO: Usa o nome de arquivo correto para os Símbolos Sabianos
+        rawTexts += `- **Símbolo Sabiano:** ${getText(KB.SignoEmGrau, planetData.sabianSymbolId)}\n\n`;
     });
 
     const prompt = `
