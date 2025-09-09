@@ -3,12 +3,14 @@ const express = require('express');
 const cors = require('cors');
 const sweph = require('sweph');
 const axios = require('axios');
+const moment = require('moment-timezone');
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
     SE_URANUS, SE_NEPTUNE, SE_PLUTO, SEFLG_SPEED
 } = require('./constants');
 const { loadKnowledgeBase } = require('./knowledgeBase');
 const { mapPlanetToIds, updatePlanetRef } = require('./mapper');
+const { generateFinalReport } = require('./reportBuilder');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,6 +18,8 @@ app.use(express.json());
 app.use(cors());
 
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
+
+let KB;
 
 // =================================================================
 // FLUXO 1: Calcular e Mapear
@@ -74,32 +78,24 @@ app.post('/analyze', async (req, res) => {
 });
 
 // =================================================================
-// FLUXO 2: Buscar Textos na Base de Conhecimento (Lógica Corrigida)
+// FLUXO 2: Buscar Textos na Base de Conhecimento
 // =================================================================
-app.post('/lookup-texts', async (req, res) => { // A função agora é async
+app.post('/lookup-texts', (req, res) => {
     try {
         const { mappedData } = req.body;
         if (!mappedData) {
             return res.status(400).json({ error: "Dados mapeados ('mappedData') não fornecidos." });
         }
         
-        // Carrega a base de conhecimento sob demanda
-        const KB = await loadKnowledgeBase();
-
-        if (!KB || Object.keys(KB).length === 0) {
-             throw new Error("A base de conhecimento está vazia ou não foi carregada. Verifique a pasta 'knowledge_base' e os arquivos .csv.");
-        }
-
         let rawTexts = "";
         mappedData.forEach(planetData => {
             rawTexts += `**Para o planeta ${planetData.planetName}:**\n`;
-            rawTexts += `- **No signo:** ${KB.PlanetasEmSigno.get(planetData.planetSignId) || 'Texto não encontrado.'}\n`;
+            rawTexts += `- **No signo:** ${KB.PlanetasEmSigno.get(planetData.planetSignId) || ''}\n`;
             planetData.aspectIds.forEach(aspectId => {
-                rawTexts += `- **Em aspecto:** ${KB.Aspectos.get(aspectId) || 'Texto não encontrado.'}\n`;
+                rawTexts += `- **Em aspecto:** ${KB.Aspectos.get(aspectId) || ''}\n`;
             });
-            // O seu print do GitHub não mostra um arquivo SimbolosSabianos.csv, então comentei esta linha.
-            // Se você adicionar o arquivo, pode descomentar a linha abaixo.
-            // rawTexts += `- **Símbolo Sabiano:** ${KB.SimbolosSabianos.get(planetData.sabianSymbolId) || 'Texto não encontrado.'}\n\n`;
+            // O seu print do GitHub mostra um arquivo SignoEmGrau.csv
+            rawTexts += `- **Símbolo Sabiano:** ${KB.SignoEmGrau.get(planetData.sabianSymbolId) || ''}\n\n`;
         });
 
         res.status(200).json({
@@ -151,8 +147,13 @@ app.post('/unify-report', async (req, res) => {
 });
 
 // =================================================================
-// INICIALIZAÇÃO DO SERVIDOR (Simplificada)
+// INICIALIZAÇÃO DO SERVIDOR
 // =================================================================
-app.listen(PORT, () => {
-    console.log(`Servidor rodando na porta ${PORT}`);
-});
+async function startServer() {
+    KB = await loadKnowledgeBase();
+    app.listen(PORT, () => {
+        console.log(`Servidor rodando na porta ${PORT}`);
+    });
+}
+
+startServer();
