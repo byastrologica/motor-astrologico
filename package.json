@@ -1,7 +1,7 @@
 {
   "name": "motor-astrologico",
   "version": "1.0.0",
-  "description": "API para cálculos astrológicos com Swiss Ephemeris",
+  "description": "API para cálculos astrológicos (planetas e aspectos) com Swiss Ephemeris",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -12,6 +12,6 @@
     "cors": "^2.8.5",
     "axios": "^1.7.2",
     "dotenv": "^16.4.5",
-    "moment-timezone": "^0.5.45",
+    "moment-timezone": "^0.5.45"
   }
 }
