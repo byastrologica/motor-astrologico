@@ -1,4 +1,4 @@
-// index.js (Versão Final e Completa)
+// index.js
 
 require('dotenv').config();
 const express = require('express');
@@ -15,6 +15,7 @@ const { getZodiacSign } = require('./mapper');
 const { getDwadasamsaSign } = require('./getDwadasamsaSign');
 const { getDignities } = require('./dignityCalculator');
 const { findAspectPatterns } = require('./aspectPatternFinder');
+const { getDegreeType } = require('./degreeClassifier');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -140,7 +141,6 @@ app.post('/calculate', async (req, res) => {
         }
 
         const aspectPatterns = findAspectPatterns(foundAspects);
-
         const sunSignInfo = getZodiacSign(calculatedPlanets.sun.longitude);
         const isDiurnal = ZODIAC_SIGNS.indexOf(sunSignInfo.name) < 6;
         const classicalPlanets = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'north_node'];
@@ -149,6 +149,7 @@ app.post('/calculate', async (req, res) => {
             const planet = calculatedPlanets[planetName];
             const { name: signName, decimalDegrees } = getZodiacSign(planet.longitude);
             planet.sign = signName;
+            planet.degree_type = getDegreeType(signName, decimalDegrees);
             planet.dwadasamsaSign = getDwadasamsaSign(signName, decimalDegrees);
             
             if (classicalPlanets.includes(planetName)) {
