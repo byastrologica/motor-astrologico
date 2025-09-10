@@ -1,3 +1,5 @@
+// constants.js
+
 // Dicionário de Planetas e Pontos
 const SE_SUN = 0;
 const SE_MOON = 1;
