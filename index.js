@@ -145,4 +145,30 @@ app.post('/calculate', async (req, res) => {
             const planet = calculatedPlanets[planetName];
             const { name: signName, decimalDegrees } = getZodiacSign(planet.longitude);
             planet.sign = signName;
-            planet.dwadasamsaSign = getDwadasamsa
+            planet.dwadasamsaSign = getDwadasamsaSign(signName, decimalDegrees);
+            
+            if (classicalPlanets.includes(planetName)) {
+                planet.dignities = getDignities(planetName, signName, decimalDegrees, isDiurnal);
+            }
+        }
+
+        const responseData = {
+            message: "Cálculo completo do mapa astral realizado com sucesso!",
+            planets: calculatedPlanets,
+            aspects: foundAspects
+        };
+
+        res.status(200).json(responseData);
+
+    } catch (error) {
+        console.error("Erro no cálculo:", error);
+        res.status(500).json({ error: 'Erro interno ao realizar o cálculo.', details: error.toString() });
+    }
+});
+
+app.get('/', (req, res) => {
+    res.send('Servidor astrológico no ar.');
+});
+app.listen(PORT, () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
+});
