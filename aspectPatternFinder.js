@@ -69,4 +69,51 @@ function findYods(aspectsByType) {
         for (const q1 of quincunxesP1) {
             const apex = q1.point1 === p1 ? q1.point2 : q1.point1;
             const hasSecondQuincunx = aspectsByType.quincunx.some(q2 =>
-                ((q2.point1 === p2 && q2.point2 === apex)
+                ((q2.point1 === p2 && q2.point2 === apex) || (q2.point1 === apex && q2.point2 === p2))
+            );
+            if (hasSecondQuincunx) {
+                yods.push({ name: 'YOD', planets: [p1, p2, apex].sort(), apex: apex });
+            }
+        }
+    }
+    return yods;
+}
+
+function findGrandCrosses(aspectsByType) {
+    const grandCrosses = [];
+    for (const opp1 of aspectsByType.opposition) {
+        const [p1, p3] = [opp1.point1, opp1.point2];
+        for (const opp2 of aspectsByType.opposition) {
+            const [p2, p4] = [opp2.point1, opp2.point2];
+            const planets = new Set([p1, p2, p3, p4]);
+            if (planets.size !== 4) continue;
+            
+            const p1_sq_p2 = aspectsByType.square.some(s => (s.point1 === p1 && s.point2 === p2) || (s.point1 === p2 && s.point2 === p1));
+            const p1_sq_p4 = aspectsByType.square.some(s => (s.point1 === p1 && s.point2 === p4) || (s.point1 === p4 && s.point2 === p1));
+            const p3_sq_p2 = aspectsByType.square.some(s => (s.point1 === p3 && s.point2 === p2) || (s.point1 === p2 && s.point2 === p3));
+            const p3_sq_p4 = aspectsByType.square.some(s => (s.point1 === p3 && s.point2 === p4) || (s.point1 === p4 && s.point2 === p3));
+
+            if (p1_sq_p2 && p1_sq_p4 && p3_sq_p2 && p3_sq_p4) {
+                 grandCrosses.push({ name: 'Grande Cruz', planets: [p1, p2, p3, p4].sort() });
+            }
+        }
+    }
+    return grandCrosses;
+}
+
+function removeDuplicatePatterns(patterns) {
+    const seen = new Set();
+    return patterns.filter(pattern => {
+        const identifier = `${pattern.name}-${pattern.planets.join(',')}`;
+        if (seen.has(identifier)) {
+            return false;
+        } else {
+            seen.add(identifier);
+            return true;
+        }
+    });
+}
+
+// --- CORREÇÃO PRINCIPAL AQUI ---
+// A função é exportada diretamente, sem chamar a si mesma.
+module.exports = { findAspectPatterns };
