@@ -1,3 +1,5 @@
+// index.js (CORRIGIDO)
+
 // =================================================================
 // DEPENDÊNCIAS E CONFIGURAÇÃO INICIAL
 // =================================================================
@@ -12,7 +14,6 @@ const {
     SE_URANUS, SE_NEPTUNE, SE_PLUTO, SE_TRUE_NODE, SEFLG_SPEED
 } = require('./constants');
 
-// --- IMPORTAÇÃO DAS FERRAMENTAS DE CÁLCULO ---
 const { getZodiacSign } = require('./mapper');
 const { getDwadasamsaSign } = require('./getDwadasamsaSign');
 const { getDignities } = require('./dignityCalculator');
@@ -25,7 +26,7 @@ app.use(cors());
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
 // =================================================================
-// FUNÇÕES AUXILIARES DA GEOAPIFY (CORRIGIDO)
+// FUNÇÕES AUXILIARES DA GEOAPIFY
 // =================================================================
 async function geocodeLocation(locationString) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY;
@@ -35,11 +36,7 @@ async function geocodeLocation(locationString) {
         const response = await axios.get(url);
         if (response.data.results && response.data.results.length > 0) {
             const result = response.data.results[0];
-            return {
-                latitude: result.lat,
-                longitude: result.lon,
-                timezone: result.timezone.name
-            };
+            return { latitude: result.lat, longitude: result.lon, timezone: result.timezone.name };
         }
         return null;
     } catch (error) {
@@ -53,16 +50,9 @@ async function buscarCidade(textoDigitado) {
     const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(textoDigitado)}&lang=pt&limit=5&type=city&format=json&apiKey=${CHAVE_API}`;
     try {
         const response = await axios.get(url);
-        const dados = response.data;
-        let resultadosLimpos = [];
-        if (dados.results) {
-            resultadosLimpos = dados.results.map(resultado => ({
-                nome_formatado: resultado.formatted,
-                latitude: resultado.lat,
-                longitude: resultado.lon,
-                fuso_horario: resultado.timezone.name
-            }));
-        }
+        const resultadosLimpos = response.data.results ? response.data.results.map(r => ({
+            nome_formatado: r.formatted, latitude: r.lat, longitude: r.lon, fuso_horario: r.timezone.name
+        })) : [];
         return resultadosLimpos;
     } catch (error) { throw new Error("Erro ao comunicar com o serviço de geolocalização."); }
 }
@@ -86,49 +76,37 @@ app.get('/api/cidades', async (req, res) => {
 app.post('/calculate', async (req, res) => {
     try {
         const { year, month, day, hour, locationString, latitude, longitude, utcOffset } = req.body;
-
         if (year == null || month == null || day == null || hour == null || (!locationString && (latitude == null || longitude == null))) {
-            return res.status(400).json({ error: 'Dados de entrada incompletos. Forneça locationString ou latitude/longitude.' });
+            return res.status(400).json({ error: 'Dados de entrada incompletos.' });
         }
-
         let lat, lon, timezone;
-
         if (latitude !== undefined && longitude !== undefined) {
             lat = parseFloat(latitude);
             lon = parseFloat(longitude);
         } else {
-            const geoResult = await geocodeLocation(locationString); // Esta chamada agora funcionará
-            if (!geoResult) {
-                return res.status(400).json({ error: `Não foi possível encontrar coordenadas para "${locationString}".` });
-            }
+            const geoResult = await geocodeLocation(locationString);
+            if (!geoResult) { return res.status(400).json({ error: `Coordenadas não encontradas para "${locationString}".` }); }
             lat = geoResult.latitude;
             lon = geoResult.longitude;
             timezone = geoResult.timezone;
         }
-
         const hourFloat = parseFloat(hour);
         const hours = Math.floor(hourFloat);
         const minutes = Math.round((hourFloat - hours) * 60);
-
         let birthTimeUtc;
-
         if (utcOffset !== undefined && utcOffset !== null) {
             const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
             const offsetInMinutes = utcOffset * 60;
             birthTimeUtc = moment(dateString).utcOffset(offsetInMinutes, true).utc();
         } else {
-            if (!timezone) {
-                timezone = moment.tz.guess(lat, lon);
-            }
+            if (!timezone) { timezone = moment.tz.guess(lat, lon); }
             const birthTimeLocal = moment.tz({ year, month: month - 1, day, hour: hours, minute: minutes }, timezone);
             birthTimeUtc = birthTimeLocal.clone().utc();
         }
-
         const utcYear = birthTimeUtc.year();
         const utcMonth = birthTimeUtc.month() + 1;
         const utcDay = birthTimeUtc.date();
         const utcHour = birthTimeUtc.hour() + (birthTimeUtc.minute() / 60) + (birthTimeUtc.second() / 3600);
-        
         const jd_ut_obj = await sweph.utc_to_jd(utcYear, utcMonth, utcDay, utcHour, 0, 0, 1);
         const julianDay = jd_ut_obj.data[0];
 
@@ -140,7 +118,6 @@ app.post('/calculate', async (req, res) => {
             { id: SE_NEPTUNE, name: 'neptune' }, { id: SE_PLUTO, name: 'pluto' },
             { id: SE_TRUE_NODE, name: 'north_node' }
         ];
-
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
             const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
@@ -169,9 +146,12 @@ app.post('/calculate', async (req, res) => {
             }
         }
 
-        const { ZODIAC_SIGNS } = require('./constants'); // Precisamos disso aqui
+        const { ZODIAC_SIGNS } = require('./constants');
         const sunSignInfo = getZodiacSign(calculatedPlanets.sun.longitude);
-        const isDiurnal = ZODIAC_SIGNS.indexOf(sunSignInfo.name) >= ZODIAC_SIGNS.indexOf('LIBRA');
+        
+        // --- LÓGICA CORRIGIDA ---
+        // Se o Sol está nos 6 primeiros signos (Áries a Virgem), é um mapa diurno.
+        const isDiurnal = ZODIAC_SIGNS.indexOf(sunSignInfo.name) < 6;
 
         for (const planetName in calculatedPlanets) {
             const planet = calculatedPlanets[planetName];
@@ -199,9 +179,8 @@ app.post('/calculate', async (req, res) => {
 // INICIALIZAÇÃO DO SERVIDOR
 // =================================================================
 app.get('/', (req, res) => {
-    res.send('Servidor astrológico no ar. Use o endpoint POST /calculate para cálculos e GET /api/cidades para autocomplete.');
+    res.send('Servidor astrológico no ar.');
 });
-
 app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`);
 });
