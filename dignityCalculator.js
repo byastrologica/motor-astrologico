@@ -2,9 +2,17 @@
 
 const { ZODIAC_SIGNS } = require('./constants');
 
-// --- TABELAS DE DIGNIDADES E DEBILIDADES ---
+// --- NOVA FUNÇÃO AUXILIAR ---
+// Normaliza o nome do signo: remove acentos e deixa em maiúsculas.
+function normalizeSignName(signName) {
+    if (!signName) return '';
+    return signName
+        .toUpperCase()
+        .normalize("NFD") // Decompõe os acentos dos caracteres
+        .replace(/[\u0300-\u036f]/g, ""); // Remove os acentos
+}
 
-// Domicílio e Exílio (signo oposto)
+// --- TABELAS DE DIGNIDADES E DEBILIDADES (sem alterações) ---
 const DIGNITIES = {
     sun:     { domicile: 'LEAO', exaltation: 'ARIES' },
     moon:    { domicile: 'CANCER', exaltation: 'TOURO' },
@@ -13,11 +21,9 @@ const DIGNITIES = {
     mars:    { domicile: ['ARIES', 'ESCORPIAO'], exaltation: 'CAPRICORNIO' },
     jupiter: { domicile: ['SAGITARIO', 'PEIXES'], exaltation: 'CANCER' },
     saturn:  { domicile: ['CAPRICORNIO', 'AQUARIO'], exaltation: 'LIBRA' },
-    // O Nodo Norte tem dignidade em Gêmeos segundo alguns astrólogos helenísticos
     north_node: { domicile: 'GEMEOS', exaltation: 'VIRGEM' }
 };
 
-// Regentes de Triplicidade (Sistema de Dorotheus)
 const TRIPLICITY_RULERS = {
     FIRE:  { signs: ['ARIES', 'LEAO', 'SAGITARIO'], day: 'sun', night: 'jupiter' },
     EARTH: { signs: ['TOURO', 'VIRGEM', 'CAPRICORNIO'], day: 'venus', night: 'moon' },
@@ -25,7 +31,6 @@ const TRIPLICITY_RULERS = {
     WATER: { signs: ['CANCER', 'ESCORPIAO', 'PEIXES'], day: 'venus', night: 'mars' }
 };
 
-// Termos (Limites) - Sistema Egípcio
 const TERMS = {
     ARIES:       [{ ruler: 'jupiter', limit: 6 }, { ruler: 'venus', limit: 14 }, { ruler: 'mercury', limit: 21 }, { ruler: 'mars', limit: 26 }, { ruler: 'saturn', limit: 30 }],
     TOURO:       [{ ruler: 'venus', limit: 8 }, { ruler: 'mercury', limit: 15 }, { ruler: 'jupiter', limit: 22 }, { ruler: 'saturn', limit: 26 }, { ruler: 'mars', limit: 30 }],
@@ -41,7 +46,6 @@ const TERMS = {
     PEIXES:      [{ ruler: 'venus', limit: 12 }, { ruler: 'jupiter', limit: 16 }, { ruler: 'mercury', limit: 19 }, { ruler: 'mars', limit: 28 }, { ruler: 'saturn', limit: 30 }]
 };
 
-// Faces (Decanatos) - Ordem Caldeia
 const FACES = {
     ARIES:       [{ ruler: 'mars', limit: 10 }, { ruler: 'sun', limit: 20 }, { ruler: 'venus', limit: 30 }],
     TOURO:       [{ ruler: 'mercury', limit: 10 }, { ruler: 'moon', limit: 20 }, { ruler: 'saturn', limit: 30 }],
@@ -57,49 +61,38 @@ const FACES = {
     PEIXES:      [{ ruler: 'saturn', limit: 10 }, { ruler: 'jupiter', limit: 20 }, { ruler: 'mars', limit: 30 }]
 };
 
-// --- FUNÇÃO PRINCIPAL DE CÁLCULO ---
-
-/**
- * Calcula todas as dignidades e debilidades essenciais de um planeta.
- * @param {string} planetName - Nome do planeta (ex: 'sun').
- * @param {string} signName - Nome do signo (ex: 'ARIES').
- * @param {number} degrees - Graus decimais no signo.
- * @param {boolean} isDiurnal - True se o mapa for diurno, false se for noturno.
- * @returns {object} Um objeto com a análise completa das dignidades.
- */
+// --- FUNÇÃO PRINCIPAL DE CÁLCULO (ATUALIZADA) ---
 function getDignities(planetName, signName, degrees, isDiurnal) {
     const result = {
-        domicile: false,
-        exaltation: false,
-        triplicity: false,
-        term: null,
-        face: null,
-        detriment: false,
-        fall: false,
+        domicile: false, exaltation: false, triplicity: false,
+        term: null, face: null, detriment: false, fall: false,
     };
 
     const planetDignities = DIGNITIES[planetName];
-    if (!planetDignities) return result; // Retorna se o planeta não tem dignidades definidas
+    if (!planetDignities) return result;
 
-    const signUpper = signName.toUpperCase();
+    // ATUALIZAÇÃO: Normaliza o nome do signo recebido
+    const signNormalized = normalizeSignName(signName);
     
     // 1. Checa Domicílio e Exílio
     const domicileSigns = Array.isArray(planetDignities.domicile) ? planetDignities.domicile : [planetDignities.domicile];
-    if (domicileSigns.includes(signUpper)) {
+    if (domicileSigns.includes(signNormalized)) {
         result.domicile = true;
     } else {
-        const detrimentSigns = domicileSigns.map(sign => ZODIAC_SIGNS[(ZODIAC_SIGNS.indexOf(sign) + 6) % 12]);
-        if (detrimentSigns.includes(signUpper)) {
+        const normalizedZodiac = ZODIAC_SIGNS.map(normalizeSignName);
+        const detrimentSigns = domicileSigns.map(sign => normalizedZodiac[(normalizedZodiac.indexOf(sign) + 6) % 12]);
+        if (detrimentSigns.includes(signNormalized)) {
             result.detriment = true;
         }
     }
 
     // 2. Checa Exaltação e Queda
-    if (planetDignities.exaltation === signUpper) {
+    if (planetDignities.exaltation === signNormalized) {
         result.exaltation = true;
     } else {
-        const fallSign = ZODIAC_SIGNS[(ZODIAC_SIGNS.indexOf(planetDignities.exaltation) + 6) % 12];
-        if (fallSign === signUpper) {
+        const normalizedZodiac = ZODIAC_SIGNS.map(normalizeSignName);
+        const fallSign = normalizedZodiac[(normalizedZodiac.indexOf(planetDignities.exaltation) + 6) % 12];
+        if (fallSign === signNormalized) {
             result.fall = true;
         }
     }
@@ -107,7 +100,7 @@ function getDignities(planetName, signName, degrees, isDiurnal) {
     // 3. Checa Triplicidade
     for (const element in TRIPLICITY_RULERS) {
         const triplicityInfo = TRIPLICITY_RULERS[element];
-        if (triplicityInfo.signs.includes(signUpper)) {
+        if (triplicityInfo.signs.includes(signNormalized)) {
             const ruler = isDiurnal ? triplicityInfo.day : triplicityInfo.night;
             if (ruler === planetName) {
                 result.triplicity = true;
@@ -117,7 +110,7 @@ function getDignities(planetName, signName, degrees, isDiurnal) {
     }
 
     // 4. Checa Termo
-    const signTerms = TERMS[signUpper];
+    const signTerms = TERMS[signNormalized];
     if (signTerms) {
         for (const term of signTerms) {
             if (degrees < term.limit) {
@@ -128,7 +121,7 @@ function getDignities(planetName, signName, degrees, isDiurnal) {
     }
     
     // 5. Checa Face
-    const signFaces = FACES[signUpper];
+    const signFaces = FACES[signNormalized];
     if (signFaces) {
         for (const face of signFaces) {
             if (degrees < face.limit) {
