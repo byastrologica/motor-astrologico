@@ -1,4 +1,4 @@
-// aspectPatternFinder.js
+// aspectPatternFinder.js (Versão Otimizada)
 
 function findAspectPatterns(aspects) {
     const patterns = [];
@@ -16,7 +16,6 @@ function findAspectPatterns(aspects) {
     patterns.push(...findYods(aspectsByType));
     patterns.push(...findGrandCrosses(aspectsByType));
     
-    // A remoção de duplicados é chamada aqui, no final
     return removeDuplicatePatterns(patterns);
 }
 
@@ -41,17 +40,29 @@ function findTSquares(aspectsByType) {
 
 function findGrandTrines(aspectsByType) {
     const grandTrines = [];
-    for (let i = 0; i < aspectsByType.trine.length; i++) {
-        for (let j = i + 1; j < aspectsByType.trine.length; j++) {
-            const t1 = aspectsByType.trine[i];
-            const t2 = aspectsByType.trine[j];
-            const planets = new Set([t1.point1, t1.point2, t2.point1, t2.point2]);
-            if (planets.size === 3) {
-                const [p1, p2, p3] = Array.from(planets);
-                const hasThirdTrine = aspectsByType.trine.some(t3 =>
-                    (new Set([t3.point1, t3.point2, p1, p2, p3])).size === 3
-                );
-                if (hasThirdTrine) {
+    const trines = aspectsByType.trine;
+    if (trines.length < 3) return grandTrines;
+
+    // Mapeia todas as conexões de trígono para cada planeta
+    const planetConnections = {};
+    trines.forEach(trine => {
+        if (!planetConnections[trine.point1]) planetConnections[trine.point1] = new Set();
+        if (!planetConnections[trine.point2]) planetConnections[trine.point2] = new Set();
+        planetConnections[trine.point1].add(trine.point2);
+        planetConnections[trine.point2].add(trine.point1);
+    });
+
+    const planets = Object.keys(planetConnections);
+    // Combina todos os planetas 3 a 3 para encontrar triângulos fechados
+    for (let i = 0; i < planets.length; i++) {
+        for (let j = i + 1; j < planets.length; j++) {
+            for (let k = j + 1; k < planets.length; k++) {
+                const p1 = planets[i];
+                const p2 = planets[j];
+                const p3 = planets[k];
+
+                // Verifica se p1 está conectado a p2 e p3, e se p2 está conectado a p3
+                if (planetConnections[p1].has(p2) && planetConnections[p1].has(p3) && planetConnections[p2].has(p3)) {
                     grandTrines.push({ name: 'Grande Trígono', planets: [p1, p2, p3].sort() });
                 }
             }
@@ -104,7 +115,8 @@ function findGrandCrosses(aspectsByType) {
 function removeDuplicatePatterns(patterns) {
     const seen = new Set();
     return patterns.filter(pattern => {
-        const identifier = `${pattern.name}-${pattern.planets.join(',')}`;
+        // Ordena os planetas para garantir uma identificação consistente
+        const identifier = `${pattern.name}-${pattern.planets.sort().join(',')}`;
         if (seen.has(identifier)) {
             return false;
         } else {
@@ -114,6 +126,4 @@ function removeDuplicatePatterns(patterns) {
     });
 }
 
-// --- CORREÇÃO PRINCIPAL AQUI ---
-// A função é exportada diretamente, sem chamar a si mesma.
 module.exports = { findAspectPatterns };
