@@ -1,18 +1,17 @@
-// dignityCalculator.js
+// dignityCalculator.js (CORRIGIDO)
 
 const { ZODIAC_SIGNS } = require('./constants');
 
-// --- NOVA FUNÇÃO AUXILIAR ---
-// Normaliza o nome do signo: remove acentos e deixa em maiúsculas.
+// --- FUNÇÃO AUXILIAR ---
 function normalizeSignName(signName) {
     if (!signName) return '';
     return signName
         .toUpperCase()
-        .normalize("NFD") // Decompõe os acentos dos caracteres
-        .replace(/[\u0300-\u036f]/g, ""); // Remove os acentos
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
 }
 
-// --- TABELAS DE DIGNIDADES E DEBILIDADES (sem alterações) ---
+// --- TABELAS DE DIGNIDADES E DEBILIDADES ---
 const DIGNITIES = {
     sun:     { domicile: 'LEAO', exaltation: 'ARIES' },
     moon:    { domicile: 'CANCER', exaltation: 'TOURO' },
@@ -61,17 +60,14 @@ const FACES = {
     PEIXES:      [{ ruler: 'saturn', limit: 10 }, { ruler: 'jupiter', limit: 20 }, { ruler: 'mars', limit: 30 }]
 };
 
-// --- FUNÇÃO PRINCIPAL DE CÁLCULO (ATUALIZADA) ---
 function getDignities(planetName, signName, degrees, isDiurnal) {
     const result = {
         domicile: false, exaltation: false, triplicity: false,
         term: null, face: null, detriment: false, fall: false,
     };
-
     const planetDignities = DIGNITIES[planetName];
-    if (!planetDignities) return result;
+    if (!planetDignities) return {};
 
-    // ATUALIZAÇÃO: Normaliza o nome do signo recebido
     const signNormalized = normalizeSignName(signName);
     
     // 1. Checa Domicílio e Exílio
@@ -131,7 +127,15 @@ function getDignities(planetName, signName, degrees, isDiurnal) {
         }
     }
 
-    return result;
+    // --- LÓGICA DE LIMPEZA ADICIONADA ---
+    const cleanedResult = {};
+    for (const key in result) {
+        if (result[key] !== false && result[key] !== null) {
+            cleanedResult[key] = result[key];
+        }
+    }
+    return cleanedResult;
+    // --- FIM DA LÓGICA DE LIMPEZA ---
 }
 
 module.exports = { getDignities };
