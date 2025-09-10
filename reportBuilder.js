@@ -15,6 +15,9 @@ async function generateFinalReport(mappedData, KB) {
         rawTexts += `**Para o planeta ${planetData.planetName}:**\n`;
         // Usa os nomes de arquivo corretos (ex: KB.PlanetasEmSigno)
         rawTexts += `- **No signo:** ${getText(KB.PlanetasEmSigno, planetData.planetSignId)}\n`;
+        // NOVO: Adiciona a linha para mostrar a Dwadasamsa.
+        // Assumimos que a interpretação virá do LLM, então enviamos o nome do signo diretamente.
+        rawTexts += `- **Na Dwadasamsa de:** ${planetData.dwadasamsaSign}\n`;
         planetData.aspectIds.forEach(aspectId => {
             rawTexts += `- **Em aspecto:** ${getText(KB.Aspectos, aspectId)}\n`;
         });
@@ -22,7 +25,7 @@ async function generateFinalReport(mappedData, KB) {
     });
 
     const prompt = `
-    Atue como um astrólogo especialista em psicologia profunda, com um estilo de escrita inspirado em Liz Greene. Sua análise deve ser focada em autoconhecimento, não ser fatalista e ter um tom empoderador.
+    Atue como uma astróloga especialista em psicologia profunda, com um estilo de escrita inspirado em Liz Greene. Sua análise deve ser focada em autoconhecimento, não ser fatalista e ter um tom empoderador.
     
     A seguir estão blocos de texto que representam interpretações astrológicas isoladas para um mapa astral. Sua tarefa é atuar como um editor final: reescreva e costure esses blocos em uma narrativa fluida, coesa e unificada. Adicione uma introdução geral, uma conclusão e sugestões práticas para o desenvolvimento pessoal ao longo do texto. Não apenas liste os textos, transforme-os em um relatório completo e inspirador.
 
