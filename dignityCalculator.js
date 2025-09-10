@@ -1,17 +1,12 @@
-// dignityCalculator.js (CORRIGIDO)
+// dignityCalculator.js
 
 const { ZODIAC_SIGNS } = require('./constants');
 
-// --- FUNÇÃO AUXILIAR ---
 function normalizeSignName(signName) {
     if (!signName) return '';
-    return signName
-        .toUpperCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "");
+    return signName.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
-// --- TABELAS DE DIGNIDADES E DEBILIDADES ---
 const DIGNITIES = {
     sun:     { domicile: 'LEAO', exaltation: 'ARIES' },
     moon:    { domicile: 'CANCER', exaltation: 'TOURO' },
@@ -22,14 +17,12 @@ const DIGNITIES = {
     saturn:  { domicile: ['CAPRICORNIO', 'AQUARIO'], exaltation: 'LIBRA' },
     north_node: { domicile: 'GEMEOS', exaltation: 'VIRGEM' }
 };
-
 const TRIPLICITY_RULERS = {
     FIRE:  { signs: ['ARIES', 'LEAO', 'SAGITARIO'], day: 'sun', night: 'jupiter' },
     EARTH: { signs: ['TOURO', 'VIRGEM', 'CAPRICORNIO'], day: 'venus', night: 'moon' },
     AIR:   { signs: ['GEMEOS', 'LIBRA', 'AQUARIO'], day: 'saturn', night: 'mercury' },
     WATER: { signs: ['CANCER', 'ESCORPIAO', 'PEIXES'], day: 'venus', night: 'mars' }
 };
-
 const TERMS = {
     ARIES:       [{ ruler: 'jupiter', limit: 6 }, { ruler: 'venus', limit: 14 }, { ruler: 'mercury', limit: 21 }, { ruler: 'mars', limit: 26 }, { ruler: 'saturn', limit: 30 }],
     TOURO:       [{ ruler: 'venus', limit: 8 }, { ruler: 'mercury', limit: 15 }, { ruler: 'jupiter', limit: 22 }, { ruler: 'saturn', limit: 26 }, { ruler: 'mars', limit: 30 }],
@@ -44,7 +37,6 @@ const TERMS = {
     AQUARIO:     [{ ruler: 'mercury', limit: 7 }, { ruler: 'venus', limit: 13 }, { ruler: 'jupiter', limit: 20 }, { ruler: 'mars', limit: 25 }, { ruler: 'saturn', limit: 30 }],
     PEIXES:      [{ ruler: 'venus', limit: 12 }, { ruler: 'jupiter', limit: 16 }, { ruler: 'mercury', limit: 19 }, { ruler: 'mars', limit: 28 }, { ruler: 'saturn', limit: 30 }]
 };
-
 const FACES = {
     ARIES:       [{ ruler: 'mars', limit: 10 }, { ruler: 'sun', limit: 20 }, { ruler: 'venus', limit: 30 }],
     TOURO:       [{ ruler: 'mercury', limit: 10 }, { ruler: 'moon', limit: 20 }, { ruler: 'saturn', limit: 30 }],
@@ -67,10 +59,7 @@ function getDignities(planetName, signName, degrees, isDiurnal) {
     };
     const planetDignities = DIGNITIES[planetName];
     if (!planetDignities) return {};
-
     const signNormalized = normalizeSignName(signName);
-    
-    // 1. Checa Domicílio e Exílio
     const domicileSigns = Array.isArray(planetDignities.domicile) ? planetDignities.domicile : [planetDignities.domicile];
     if (domicileSigns.includes(signNormalized)) {
         result.domicile = true;
@@ -81,8 +70,6 @@ function getDignities(planetName, signName, degrees, isDiurnal) {
             result.detriment = true;
         }
     }
-
-    // 2. Checa Exaltação e Queda
     if (planetDignities.exaltation === signNormalized) {
         result.exaltation = true;
     } else {
@@ -92,8 +79,6 @@ function getDignities(planetName, signName, degrees, isDiurnal) {
             result.fall = true;
         }
     }
-
-    // 3. Checa Triplicidade
     for (const element in TRIPLICITY_RULERS) {
         const triplicityInfo = TRIPLICITY_RULERS[element];
         if (triplicityInfo.signs.includes(signNormalized)) {
@@ -104,8 +89,6 @@ function getDignities(planetName, signName, degrees, isDiurnal) {
             break;
         }
     }
-
-    // 4. Checa Termo
     const signTerms = TERMS[signNormalized];
     if (signTerms) {
         for (const term of signTerms) {
@@ -115,8 +98,6 @@ function getDignities(planetName, signName, degrees, isDiurnal) {
             }
         }
     }
-    
-    // 5. Checa Face
     const signFaces = FACES[signNormalized];
     if (signFaces) {
         for (const face of signFaces) {
@@ -126,8 +107,6 @@ function getDignities(planetName, signName, degrees, isDiurnal) {
             }
         }
     }
-
-    // --- LÓGICA DE LIMPEZA ADICIONADA ---
     const cleanedResult = {};
     for (const key in result) {
         if (result[key] !== false && result[key] !== null) {
@@ -135,7 +114,6 @@ function getDignities(planetName, signName, degrees, isDiurnal) {
         }
     }
     return cleanedResult;
-    // --- FIM DA LÓGICA DE LIMPEZA ---
 }
 
 module.exports = { getDignities };
