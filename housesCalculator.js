@@ -1,4 +1,4 @@
-// housesCalculator.js (Versão Corrigida)
+// housesCalculator.js (Versão Final e Corrigida)
 
 const sweph = require('sweph');
 
@@ -40,8 +40,9 @@ async function calculateHousesAndPlacements(julianDay, lat, lon, planets) {
     const houseSystem = 'P';
     const housesResult = await sweph.houses(julianDay, lat, lon, houseSystem);
     
-    // CORREÇÃO: Removemos o '.data' para aceder diretamente ao array
-    const houseCusps = housesResult.slice(0, 12);
+    // --- CORREÇÃO DEFINITIVA ---
+    // A função retorna um array de arrays. O primeiro ([0]) é o que contém as cúspides.
+    const houseCusps = housesResult[0];
 
     for (const planetName in planets) {
         const planet = planets[planetName];
