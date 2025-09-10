@@ -1,0 +1,45 @@
+// Definição da constante com os signos
+const ZODIAC_SIGNS = [
+  'Áries', 'Touro', 'Gêmeos', 'Câncer', 'Leão', 'Virgem',
+  'Libra', 'Escorpião', 'Sagitário', 'Capricórnio', 'Aquário', 'Peixes'
+];
+
+/**
+ * Calcula o signo da Dwadasamsa de um corpo celeste.
+ * @param {string} planetSign - O signo do planeta (ex: 'Áries').
+ * @param {number} planetDegrees - A posição em graus decimais dentro do signo (0 a 29.99).
+ * @returns {string} O nome do signo da Dwadasamsa.
+ */
+function getDwadasamsaSign(planetSign, planetDegrees) {
+  // Passo 1: Encontrar o índice do signo inicial (0-11)
+  const startSignIndex = ZODIAC_SIGNS.indexOf(planetSign);
+
+  // Validação para caso o nome do signo seja inválido
+  if (startSignIndex === -1) {
+    throw new Error(`Signo inválido: ${planetSign}`);
+  }
+
+  // Passo 2: Calcular o índice da dwadasamsa (0-11)
+  // Cada dwadasamsa tem 2.5 graus.
+  const dwadasamsaIndex = Math.floor(planetDegrees / 2.5);
+
+  // Passo 3: Calcular o índice do signo final, usando módulo para o "wrap-around" do zodíaco
+  const finalSignIndex = (startSignIndex + dwadasamsaIndex) % 12;
+
+  // Passo 4: Retornar o nome do signo a partir do array
+  return ZODIAC_SIGNS[finalSignIndex];
+}
+
+// --- Exemplo de Uso com os dados do seu mapa ---
+
+// Sol em Áries a 24° 04' 10"
+// Primeiro, converta para decimal: 24 + (4 / 60) + (10 / 3600) ≈ 24.069
+const sunDegrees = 24.069;
+const sunDwadasamsa = getDwadasamsaSign('Áries', sunDegrees);
+console.log(`Dwadasamsa do Sol: ${sunDwadasamsa}`); // Saída esperada: Dwadasamsa do Sol: Capricórnio
+
+// Plutão em Libra a 25° 35' 30"
+// Decimal: 25 + (35 / 60) + (30 / 3600) ≈ 25.591
+const plutoDegrees = 25.591;
+const plutoDwadasamsa = getDwadasamsaSign('Libra', plutoDegrees);
+console.log(`Dwadasamsa de Plutão: ${plutoDwadasamsa}`); // Saída esperada: Dwadasamsa de Plutão: Leão
