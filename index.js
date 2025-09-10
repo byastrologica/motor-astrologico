@@ -1,4 +1,4 @@
-// index.js (CORRIGIDO)
+// index.js (Versão Final Corrigida)
 
 // =================================================================
 // DEPENDÊNCIAS E CONFIGURAÇÃO INICIAL
@@ -9,9 +9,11 @@ const cors = require('cors');
 const sweph = require('sweph');
 const axios = require('axios');
 const moment = require('moment-timezone');
+
+// ATUALIZADO: ZODIAC_SIGNS agora é importado aqui no topo.
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
-    SE_URANUS, SE_NEPTUNE, SE_PLUTO, SE_TRUE_NODE, SEFLG_SPEED
+    SE_URANUS, SE_NEPTUNE, SE_PLUTO, SE_TRUE_NODE, SEFLG_SPEED, ZODIAC_SIGNS
 } = require('./constants');
 
 const { getZodiacSign } = require('./mapper');
@@ -146,11 +148,7 @@ app.post('/calculate', async (req, res) => {
             }
         }
 
-        const { ZODIAC_SIGNS } = require('./constants');
         const sunSignInfo = getZodiacSign(calculatedPlanets.sun.longitude);
-        
-        // --- LÓGICA CORRIGIDA ---
-        // Se o Sol está nos 6 primeiros signos (Áries a Virgem), é um mapa diurno.
         const isDiurnal = ZODIAC_SIGNS.indexOf(sunSignInfo.name) < 6;
 
         for (const planetName in calculatedPlanets) {
