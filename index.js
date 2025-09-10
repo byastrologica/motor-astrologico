@@ -68,11 +68,15 @@ async function buscarCidade(textoDigitado) {
 // =================================================================
 app.get('/api/cidades', async (req, res) => {
     const { busca } = req.query;
-    if (!busca || busca.trim().length < 2) { return res.status(400).json({ error: 'Parâmetro "busca" é obrigatório e deve ter ao menos 2 caracteres.' }); }
+    if (!busca || busca.trim().length < 2) { 
+        return res.status(400).json({ error: 'Parâmetro "busca" é obrigatório e deve ter ao menos 2 caracteres.' }); 
+    }
     try {
         const resultados = await buscarCidade(busca);
         res.status(200).json(resultados);
-    } catch (error) { res.status(500).json({ error: error.message }); }
+    } catch (error) { 
+        res.status(500).json({ error: error.message }); 
+    }
 });
 
 app.post('/calculate', async (req, res) => {
@@ -105,15 +109,10 @@ app.post('/calculate', async (req, res) => {
         let birthTimeUtc;
 
         if (utcOffset !== undefined && utcOffset !== null) {
-            // ======================================================
-            // LÓGICA DE PRECISÃO FINAL (v3)
-            // ======================================================
             const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
             const offsetInMinutes = utcOffset * 60;
             birthTimeUtc = moment(dateString).utcOffset(offsetInMinutes, true).utc();
-
         } else {
-            // Detecção automática
             if (!timezone) {
                 timezone = moment.tz.guess(lat, lon);
             }
@@ -129,24 +128,9 @@ app.post('/calculate', async (req, res) => {
         const jd_ut_obj = await sweph.utc_to_jd(utcYear, utcMonth, utcDay, utcHour, 0, 0, 1);
         const julianDay = jd_ut_obj.data[0];
 
-        const houseSystem = 'P';
-        const housesResult = await sweph.houses(julianDay, lat, lon, houseSystem);
-        
-        if (!housesResult || !housesResult.data || !housesResult.data.houses || !housesResult.data.points) {
-            throw new Error("Não foi possível calcular as casas astrológicas para esta data/local.");
-        }
-        
-        const calculatedHouses = {
-            ascendant: housesResult.data.points[0],
-            mc: housesResult.data.points[1],
-            cusps: {
-                1: housesResult.data.houses[0], 2: housesResult.data.houses[1], 3: housesResult.data.houses[2],
-                4: housesResult.data.houses[3], 5: housesResult.data.houses[4], 6: housesResult.data.houses[5],
-                7: housesResult.data.houses[6], 8: housesResult.data.houses[7], 9: housesResult.data.houses[8],
-                10: housesResult.data.houses[9], 11: housesResult.data.houses[10], 12: housesResult.data.houses[11]
-            }
-        };
-
+        // =================================================================
+        // CÁLCULO DOS PLANETAS
+        // =================================================================
         const planetsToCalc = [
             { id: SE_SUN, name: 'sun' }, { id: SE_MOON, name: 'moon' },
             { id: SE_MERCURY, name: 'mercury' }, { id: SE_VENUS, name: 'venus' },
@@ -159,33 +143,58 @@ app.post('/calculate', async (req, res) => {
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
             const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
-            calculatedPlanets[planet.name] = { longitude: position.data[0], latitude: position.data[1], speed: position.data[3] };
+            calculatedPlanets[planet.name] = { 
+                longitude: position.data[0], 
+                latitude: position.data[1], 
+                speed: position.data[3] 
+            };
         }
 
+        // =================================================================
+        // CÁLCULO DOS ASPECTOS
+        // =================================================================
         const aspectsConfig = {
-            conjunction: { angle: 0, orb: 10 }, opposition: { angle: 180, orb: 10 },
-            trine: { angle: 120, orb: 10 }, square: { angle: 90, orb: 10 }, sextile: { angle: 60, orb: 6 }
+            conjunction: { angle: 0, orb: 10 }, 
+            opposition: { angle: 180, orb: 10 },
+            trine: { angle: 120, orb: 10 }, 
+            square: { angle: 90, orb: 10 }, 
+            sextile: { angle: 60, orb: 6 }
         };
 
-        const planetPoints = Object.keys(calculatedPlanets).map(name => ({ name: name, longitude: calculatedPlanets[name].longitude }));
+        const planetPoints = Object.keys(calculatedPlanets).map(name => ({
+            name: name, 
+            longitude: calculatedPlanets[name].longitude 
+        }));
         
         const foundAspects = [];
         for (let i = 0; i < planetPoints.length; i++) {
             for (let j = i + 1; j < planetPoints.length; j++) {
-                const planet1 = planetPoints[i]; const planet2 = planetPoints[j];
+                const planet1 = planetPoints[i]; 
+                const planet2 = planetPoints[j];
                 let distance = Math.abs(planet1.longitude - planet2.longitude);
                 if (distance > 180) { distance = 360 - distance; }
                 for (const aspectName in aspectsConfig) {
                     const aspect = aspectsConfig[aspectName];
                     const orb = Math.abs(distance - aspect.angle);
-                    if (orb <= aspect.orb) { foundAspects.push({ point1: planet1.name, point2: planet2.name, aspect_type: aspectName, orb_degrees: parseFloat(orb.toFixed(2)) }); }
+                    if (orb <= aspect.orb) { 
+                        foundAspects.push({ 
+                            point1: planet1.name, 
+                            point2: planet2.name, 
+                            aspect_type: aspectName, 
+                            orb_degrees: parseFloat(orb.toFixed(2)) 
+                        }); 
+                    }
                 }
             }
         }
 
+        // =================================================================
+        // RESPOSTA FINAL (sem casas)
+        // =================================================================
         const responseData = {
             message: "Cálculo completo do mapa astral realizado com sucesso!",
-            houses: calculatedHouses, planets: calculatedPlanets, aspects: foundAspects
+            planets: calculatedPlanets,
+            aspects: foundAspects
         };
 
         res.status(200).json(responseData);
