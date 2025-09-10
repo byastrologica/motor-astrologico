@@ -1,4 +1,4 @@
-// housesCalculator.js
+// housesCalculator.js (Versão Corrigida)
 
 const sweph = require('sweph');
 
@@ -15,7 +15,7 @@ function getPlanetHouse(planetLongitude, houseCusps) {
         const cusp1 = cusps[i];
         const cusp2 = cusps[i + 1];
 
-        if (cusp2 < cusp1) { // Lida com a "virada" do zodíaco
+        if (cusp2 < cusp1) {
             if (planetLongitude >= cusp1 || planetLongitude < cusp2) {
                 return i + 1;
             }
@@ -25,7 +25,7 @@ function getPlanetHouse(planetLongitude, houseCusps) {
             }
         }
     }
-    return null; // Caso de erro
+    return null;
 }
 
 /**
@@ -37,17 +37,17 @@ function getPlanetHouse(planetLongitude, houseCusps) {
  * @returns {object} Um objeto contendo os dados das casas e os planetas atualizados com a sua casa.
  */
 async function calculateHousesAndPlacements(julianDay, lat, lon, planets) {
-    const houseSystem = 'P'; // 'P' para o sistema Placidus
+    const houseSystem = 'P';
     const housesResult = await sweph.houses(julianDay, lat, lon, houseSystem);
-    const houseCusps = housesResult.data.slice(0, 12);
+    
+    // CORREÇÃO: Removemos o '.data' para aceder diretamente ao array
+    const houseCusps = housesResult.slice(0, 12);
 
-    // Adiciona a informação da casa a cada planeta
     for (const planetName in planets) {
         const planet = planets[planetName];
         planet.house = getPlanetHouse(planet.longitude, houseCusps);
     }
 
-    // Monta o objeto final de casas para a resposta da API
     const housesData = {
         system: 'Placidus',
         cusps: {
@@ -59,8 +59,8 @@ async function calculateHousesAndPlacements(julianDay, lat, lon, planets) {
     };
 
     return {
-        housesData,       // O objeto com as informações das cúspides
-        planetsWithHouses: planets // O objeto de planetas, agora com o campo 'house'
+        housesData,
+        planetsWithHouses: planets
     };
 }
 
