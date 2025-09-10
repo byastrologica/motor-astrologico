@@ -1,156 +1,208 @@
+// =================================================================
+// DEPENDÊNCIAS E CONFIGURAÇÃO INICIAL
+// =================================================================
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const sweph = require('sweph');
 const axios = require('axios');
+const moment = require('moment-timezone');
 const {
     SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN,
-    SE_URANUS, SE_NEPTUNE, SE_PLUTO, SEFLG_SPEED
+    SE_URANUS, SE_NEPTUNE, SE_PLUTO, SE_TRUE_NODE, SEFLG_SPEED
 } = require('./constants');
-const { loadKnowledgeBase } = require('./knowledgeBase');
-const { mapPlanetToIds, updatePlanetRef } = require('./mapper');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(cors());
 
+// Configura o caminho para os arquivos de efemérides da Swiss Ephemeris
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
-let KB;
+// =================================================================
+// FUNÇÕES AUXILIARES DA GEOAPIFY
+// =================================================================
+async function geocodeLocation(locationString) {
+    const CHAVE_API = process.env.GEOAPIFY_API_KEY;
+    if (!CHAVE_API) { throw new Error("Chave de API da Geoapify não configurada."); }
+    const url = `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(locationString)}&lang=pt&limit=1&format=json&apiKey=${CHAVE_API}`;
+    try {
+        const response = await axios.get(url);
+        if (response.data.results && response.data.results.length > 0) {
+            const result = response.data.results[0];
+            return {
+                latitude: result.lat,
+                longitude: result.lon,
+                timezone: result.timezone.name
+            };
+        }
+        return null;
+    } catch (error) {
+        console.error("Erro ao geocodificar localização:", error.message);
+        throw new Error("Erro ao comunicar com o serviço de geocodificação.");
+    }
+}
+async function buscarCidade(textoDigitado) {
+    const CHAVE_API = process.env.GEOAPIFY_API_KEY; 
+    if (!CHAVE_API) { throw new Error("Configuração do servidor incompleta."); }
+    const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(textoDigitado)}&lang=pt&limit=5&type=city&format=json&apiKey=${CHAVE_API}`;
+    try {
+        const response = await axios.get(url);
+        const dados = response.data;
+        let resultadosLimpos = [];
+        if (dados.results) {
+            resultadosLimpos = dados.results.map(resultado => ({
+                nome_formatado: resultado.formatted,
+                latitude: resultado.lat,
+                longitude: resultado.lon,
+                fuso_horario: resultado.timezone.name
+            }));
+        }
+        return resultadosLimpos;
+    } catch (error) { throw new Error("Erro ao comunicar com o serviço de geolocalização."); }
+}
 
 // =================================================================
-// FLUXO 1: Calcular e Mapear
+// ENDPOINTS DA API
 // =================================================================
-app.post('/analyze', async (req, res) => {
+app.get('/api/cidades', async (req, res) => {
+    const { busca } = req.query;
+    if (!busca || busca.trim().length < 2) { return res.status(400).json({ error: 'Parâmetro "busca" é obrigatório e deve ter ao menos 2 caracteres.' }); }
     try {
-        const { year, month, day, utcHour } = req.body;
-        if (!year || !month || !day || !utcHour) {
-            return res.status(400).json({ error: 'Dados de entrada incompletos.' });
+        const resultados = await buscarCidade(busca);
+        res.status(200).json(resultados);
+    } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.post('/calculate', async (req, res) => {
+    try {
+        const { year, month, day, hour, locationString, latitude, longitude, utcOffset } = req.body;
+
+        if (year == null || month == null || day == null || hour == null || (!locationString && (latitude == null || longitude == null))) {
+            return res.status(400).json({ error: 'Dados de entrada incompletos. Forneça locationString ou latitude/longitude.' });
+        }
+
+        let lat, lon, timezone;
+
+        if (latitude !== undefined && longitude !== undefined) {
+            lat = parseFloat(latitude);
+            lon = parseFloat(longitude);
+        } else {
+            const geoResult = await geocodeLocation(locationString);
+            if (!geoResult) {
+                return res.status(400).json({ error: `Não foi possível encontrar coordenadas para "${locationString}".` });
+            }
+            lat = geoResult.latitude;
+            lon = geoResult.longitude;
+            timezone = geoResult.timezone;
         }
         
-        const jd_ut_obj = await sweph.utc_to_jd(year, month, day, parseFloat(utcHour), 0, 0, 1);
+        const hourFloat = parseFloat(hour);
+        const hours = Math.floor(hourFloat);
+        const minutes = Math.round((hourFloat - hours) * 60);
+
+        let birthTimeUtc;
+
+        if (utcOffset !== undefined && utcOffset !== null) {
+            // ======================================================
+            // LÓGICA DE PRECISÃO FINAL (v3)
+            // ======================================================
+            const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+            const offsetInMinutes = utcOffset * 60;
+            birthTimeUtc = moment(dateString).utcOffset(offsetInMinutes, true).utc();
+
+        } else {
+            // Detecção automática
+            if (!timezone) {
+                timezone = moment.tz.guess(lat, lon);
+            }
+            const birthTimeLocal = moment.tz({ year, month: month - 1, day, hour: hours, minute: minutes }, timezone);
+            birthTimeUtc = birthTimeLocal.clone().utc();
+        }
+
+        const utcYear = birthTimeUtc.year();
+        const utcMonth = birthTimeUtc.month() + 1;
+        const utcDay = birthTimeUtc.date();
+        const utcHour = birthTimeUtc.hour() + (birthTimeUtc.minute() / 60) + (birthTimeUtc.second() / 3600);
+        
+        const jd_ut_obj = await sweph.utc_to_jd(utcYear, utcMonth, utcDay, utcHour, 0, 0, 1);
         const julianDay = jd_ut_obj.data[0];
+
+        const houseSystem = 'P';
+        const housesResult = await sweph.houses(julianDay, lat, lon, houseSystem);
+        
+        if (!housesResult || !housesResult.data || !housesResult.data.houses || !housesResult.data.points) {
+            throw new Error("Não foi possível calcular as casas astrológicas para esta data/local.");
+        }
+        
+        const calculatedHouses = {
+            ascendant: housesResult.data.points[0],
+            mc: housesResult.data.points[1],
+            cusps: {
+                1: housesResult.data.houses[0], 2: housesResult.data.houses[1], 3: housesResult.data.houses[2],
+                4: housesResult.data.houses[3], 5: housesResult.data.houses[4], 6: housesResult.data.houses[5],
+                7: housesResult.data.houses[6], 8: housesResult.data.houses[7], 9: housesResult.data.houses[8],
+                10: housesResult.data.houses[9], 11: housesResult.data.houses[10], 12: housesResult.data.houses[11]
+            }
+        };
 
         const planetsToCalc = [
             { id: SE_SUN, name: 'sun' }, { id: SE_MOON, name: 'moon' },
             { id: SE_MERCURY, name: 'mercury' }, { id: SE_VENUS, name: 'venus' },
             { id: SE_MARS, name: 'mars' }, { id: SE_JUPITER, name: 'jupiter' },
             { id: SE_SATURN, name: 'saturn' }, { id: SE_URANUS, name: 'uranus' },
-            { id: SE_NEPTUNE, name: 'neptune' }, { id: SE_PLUTO, name: 'pluto' }
+            { id: SE_NEPTUNE, name: 'neptune' }, { id: SE_PLUTO, name: 'pluto' },
+            { id: SE_TRUE_NODE, name: 'north_node' }
         ];
+
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
             const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
-            calculatedPlanets[planet.name] = { longitude: position.data[0] };
+            calculatedPlanets[planet.name] = { longitude: position.data[0], latitude: position.data[1], speed: position.data[3] };
         }
+
         const aspectsConfig = {
             conjunction: { angle: 0, orb: 10 }, opposition: { angle: 180, orb: 10 },
             trine: { angle: 120, orb: 10 }, square: { angle: 90, orb: 10 }, sextile: { angle: 60, orb: 6 }
         };
-        const planetPoints = Object.keys(calculatedPlanets).map(name => ({ name, longitude: calculatedPlanets[name].longitude }));
+
+        const planetPoints = Object.keys(calculatedPlanets).map(name => ({ name: name, longitude: calculatedPlanets[name].longitude }));
+        
         const foundAspects = [];
         for (let i = 0; i < planetPoints.length; i++) {
             for (let j = i + 1; j < planetPoints.length; j++) {
-                let distance = Math.abs(planetPoints[i].longitude - planetPoints[j].longitude);
+                const planet1 = planetPoints[i]; const planet2 = planetPoints[j];
+                let distance = Math.abs(planet1.longitude - planet2.longitude);
                 if (distance > 180) { distance = 360 - distance; }
                 for (const aspectName in aspectsConfig) {
                     const aspect = aspectsConfig[aspectName];
-                    if (Math.abs(distance - aspect.angle) <= aspect.orb) {
-                        foundAspects.push({ point1: planetPoints[i].name, point2: planetPoints[j].name, aspect_type: aspectName });
-                    }
+                    const orb = Math.abs(distance - aspect.angle);
+                    if (orb <= aspect.orb) { foundAspects.push({ point1: planet1.name, point2: planet2.name, aspect_type: aspectName, orb_degrees: parseFloat(orb.toFixed(2)) }); }
                 }
             }
         }
-        updatePlanetRef(calculatedPlanets);
-        const mappedData = planetPoints.map(p => mapPlanetToIds(p, foundAspects));
-        
-        res.status(200).json({
-            message: "Análise e mapeamento concluídos com sucesso.",
-            mappedData: mappedData
-        });
+
+        const responseData = {
+            message: "Cálculo completo do mapa astral realizado com sucesso!",
+            houses: calculatedHouses, planets: calculatedPlanets, aspects: foundAspects
+        };
+
+        res.status(200).json(responseData);
 
     } catch (error) {
-        res.status(500).json({ error: 'Erro interno na análise.', details: error.toString() });
-    }
-});
-
-// =================================================================
-// FLUXO 2: Buscar Textos na Base de Conhecimento
-// =================================================================
-app.post('/lookup-texts', (req, res) => {
-    try {
-        const { mappedData } = req.body;
-        if (!mappedData) {
-            return res.status(400).json({ error: "Dados mapeados ('mappedData') não fornecidos." });
-        }
-        
-        let rawTexts = "";
-        mappedData.forEach(planetData => {
-            rawTexts += `**Para o planeta ${planetData.planetName}:**\n`;
-            rawTexts += `- **No signo:** ${KB.PlanetasEmSigno.get(planetData.planetSignId) || 'Texto não encontrado.'}\n`;
-            planetData.aspectIds.forEach(aspectId => {
-                rawTexts += `- **Em aspecto:** ${KB.Aspectos.get(aspectId) || 'Texto não encontrado.'}\n`;
-            });
-            rawTexts += `- **Símbolo Sabiano:** ${KB.SignoEmGrau.get(planetData.sabianSymbolId) || 'Texto não encontrado.'}\n\n`;
-        });
-
-        res.status(200).json({
-            message: "Textos da base de conhecimento recuperados com sucesso.",
-            rawTexts: rawTexts.trim()
-        });
-
-    } catch (error) {
-        res.status(500).json({ error: 'Erro interno na busca de textos.', details: error.toString() });
-    }
-});
-
-// =================================================================
-// FLUXO 3: Unificar com Gemini
-// =================================================================
-app.post('/unify-report', async (req, res) => {
-    try {
-        const { rawTexts } = req.body;
-        if (!rawTexts) {
-            return res.status(400).json({ error: "Textos brutos ('rawTexts') não fornecidos." });
-        }
-        const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-        if (!GEMINI_API_KEY) { throw new Error("Chave de API do Gemini não configurada."); }
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
-        
-        const prompt = `
-        Atue como um astrólogo especialista em psicologia profunda, com um estilo de escrita inspirado em Liz Greene. Sua análise deve ser focada em autoconhecimento, não ser fatalista e ter um tom empoderador.
-    
-        A seguir estão blocos de texto que representam interpretações astrológicas isoladas para um mapa astral. Sua tarefa é atuar como um editor final: reescreva e costure esses blocos em uma narrativa fluida, coesa e unificada. Adicione uma introdução geral, uma conclusão e sugestões práticas para o desenvolvimento pessoal ao longo do texto. Não apenas liste os textos, transforme-os em um relatório completo e inspirador.
-
-        **TEXTOS BASE PARA A ANÁLISE:**
-        ${rawTexts}
-        `;
-
-        const payload = { contents: [{ "parts": [{ "text": prompt.trim() }] }] };
-        const response = await axios.post(apiUrl, payload);
-        
-        if (response.data.candidates && response.data.candidates[0].content.parts[0].text) {
-            res.status(200).json({
-                message: "Relatório final gerado com sucesso!",
-                interpretation: response.data.candidates[0].content.parts[0].text
-            });
-        } else {
-            throw new Error("Resposta do Gemini não continha texto de interpretação.");
-        }
-    } catch (error) {
-        res.status(500).json({ error: 'Erro interno na unificação com Gemini.', details: error.toString() });
+        console.error("Erro no cálculo:", error);
+        res.status(500).json({ error: 'Erro interno ao realizar o cálculo.', details: error.toString() });
     }
 });
 
 // =================================================================
 // INICIALIZAÇÃO DO SERVIDOR
 // =================================================================
-async function startServer() {
-    KB = await loadKnowledgeBase();
-    app.listen(PORT, () => {
-        console.log(`Servidor rodando na porta ${PORT}`);
-    });
-}
+app.get('/', (req, res) => {
+    res.send('Servidor astrológico no ar. Use o endpoint POST /calculate para cálculos e GET /api/cidades para autocomplete.');
+});
 
-startServer();
+app.listen(PORT, () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
+});
