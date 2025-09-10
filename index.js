@@ -12,16 +12,20 @@ const {
     SE_URANUS, SE_NEPTUNE, SE_PLUTO, SE_TRUE_NODE, SEFLG_SPEED
 } = require('./constants');
 
+// --- NOVO: IMPORTAÇÃO DAS FERRAMENTAS DE CÁLCULO ---
+const { getZodiacSign } = require('./mapper');
+const { getDwadasamsaSign } = require('./getDwadasamsaSign');
+// --- FIM DO NOVO BLOCO ---
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(cors());
 
-// Configura o caminho para os arquivos de efemérides da Swiss Ephemeris
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
 // =================================================================
-// FUNÇÕES AUXILIARES DA GEOAPIFY
+// FUNÇÕES AUXILIARES DA GEOAPIFY (sem alterações)
 // =================================================================
 async function geocodeLocation(locationString) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY;
@@ -44,7 +48,7 @@ async function geocodeLocation(locationString) {
     }
 }
 async function buscarCidade(textoDigitado) {
-    const CHAVE_API = process.env.GEOAPIFY_API_KEY; 
+    const CHAVE_API = process.env.GEOAPIFY_API_KEY;
     if (!CHAVE_API) { throw new Error("Configuração do servidor incompleta."); }
     const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(textoDigitado)}&lang=pt&limit=5&type=city&format=json&apiKey=${CHAVE_API}`;
     try {
@@ -64,18 +68,18 @@ async function buscarCidade(textoDigitado) {
 }
 
 // =================================================================
-// ENDPOINTS DA API
+// ENDPOINTS DA API (sem alterações na lógica principal)
 // =================================================================
 app.get('/api/cidades', async (req, res) => {
     const { busca } = req.query;
-    if (!busca || busca.trim().length < 2) { 
-        return res.status(400).json({ error: 'Parâmetro "busca" é obrigatório e deve ter ao menos 2 caracteres.' }); 
+    if (!busca || busca.trim().length < 2) {
+        return res.status(400).json({ error: 'Parâmetro "busca" é obrigatório e deve ter ao menos 2 caracteres.' });
     }
     try {
         const resultados = await buscarCidade(busca);
         res.status(200).json(resultados);
-    } catch (error) { 
-        res.status(500).json({ error: error.message }); 
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
 });
 
@@ -101,7 +105,7 @@ app.post('/calculate', async (req, res) => {
             lon = geoResult.longitude;
             timezone = geoResult.timezone;
         }
-        
+
         const hourFloat = parseFloat(hour);
         const hours = Math.floor(hourFloat);
         const minutes = Math.round((hourFloat - hours) * 60);
@@ -129,7 +133,7 @@ app.post('/calculate', async (req, res) => {
         const julianDay = jd_ut_obj.data[0];
 
         // =================================================================
-        // CÁLCULO DOS PLANETAS
+        // CÁLCULO DOS PLANETAS (sem alterações)
         // =================================================================
         const planetsToCalc = [
             { id: SE_SUN, name: 'sun' }, { id: SE_MOON, name: 'moon' },
@@ -143,53 +147,65 @@ app.post('/calculate', async (req, res) => {
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
             const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
-            calculatedPlanets[planet.name] = { 
-                longitude: position.data[0], 
-                latitude: position.data[1], 
-                speed: position.data[3] 
+            calculatedPlanets[planet.name] = {
+                longitude: position.data[0],
+                latitude: position.data[1],
+                speed: position.data[3]
             };
         }
 
         // =================================================================
-        // CÁLCULO DOS ASPECTOS
+        // CÁLCULO DOS ASPECTOS (sem alterações)
         // =================================================================
         const aspectsConfig = {
-            conjunction: { angle: 0, orb: 10 }, 
+            conjunction: { angle: 0, orb: 10 },
             opposition: { angle: 180, orb: 10 },
-            trine: { angle: 120, orb: 10 }, 
-            square: { angle: 90, orb: 10 }, 
+            trine: { angle: 120, orb: 10 },
+            square: { angle: 90, orb: 10 },
             sextile: { angle: 60, orb: 6 }
         };
 
         const planetPoints = Object.keys(calculatedPlanets).map(name => ({
-            name: name, 
-            longitude: calculatedPlanets[name].longitude 
+            name: name,
+            longitude: calculatedPlanets[name].longitude
         }));
         
         const foundAspects = [];
         for (let i = 0; i < planetPoints.length; i++) {
             for (let j = i + 1; j < planetPoints.length; j++) {
-                const planet1 = planetPoints[i]; 
+                const planet1 = planetPoints[i];
                 const planet2 = planetPoints[j];
                 let distance = Math.abs(planet1.longitude - planet2.longitude);
                 if (distance > 180) { distance = 360 - distance; }
                 for (const aspectName in aspectsConfig) {
                     const aspect = aspectsConfig[aspectName];
                     const orb = Math.abs(distance - aspect.angle);
-                    if (orb <= aspect.orb) { 
-                        foundAspects.push({ 
-                            point1: planet1.name, 
-                            point2: planet2.name, 
-                            aspect_type: aspectName, 
-                            orb_degrees: parseFloat(orb.toFixed(2)) 
-                        }); 
+                    if (orb <= aspect.orb) {
+                        foundAspects.push({
+                            point1: planet1.name,
+                            point2: planet2.name,
+                            aspect_type: aspectName,
+                            orb_degrees: parseFloat(orb.toFixed(2))
+                        });
                     }
                 }
             }
         }
 
+        // --- NOVO: ENRIQUECIMENTO DOS DADOS DOS PLANETAS ---
+        for (const planetName in calculatedPlanets) {
+            const planet = calculatedPlanets[planetName];
+            const { name: signName, decimalDegrees } = getZodiacSign(planet.longitude);
+            const dwadasamsa = getDwadasamsaSign(signName, decimalDegrees);
+            
+            // Adiciona os novos campos ao objeto de cada planeta
+            planet.sign = signName;
+            planet.dwadasamsaSign = dwadasamsa;
+        }
+        // --- FIM DO NOVO BLOCO ---
+
         // =================================================================
-        // RESPOSTA FINAL (sem casas)
+        // RESPOSTA FINAL (agora com os dados enriquecidos)
         // =================================================================
         const responseData = {
             message: "Cálculo completo do mapa astral realizado com sucesso!",
@@ -206,7 +222,7 @@ app.post('/calculate', async (req, res) => {
 });
 
 // =================================================================
-// INICIALIZAÇÃO DO SERVIDOR
+// INICIALIZAÇÃO DO SERVIDOR (sem alterações)
 // =================================================================
 app.get('/', (req, res) => {
     res.send('Servidor astrológico no ar. Use o endpoint POST /calculate para cálculos e GET /api/cidades para autocomplete.');
