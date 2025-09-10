@@ -1,3 +1,6 @@
+// NOVO: Importa a função que calcula a Dwadasamsa
+const { getDwadasamsaSign } = require('./getDwadasamsaSign');
+
 // Dicionários de Tradução para alinhar com os IDs dos CSVs
 const PLANET_ID_MAP = {
     sun: 'SOL', moon: 'LUA', mercury: 'MERCURIO', venus: 'VENUS', mars: 'MARTE',
@@ -31,6 +34,11 @@ function mapPlanetToIds(planet, aspects) {
     
     const planetId = PLANET_ID_MAP[name];
 
+    // --- NOVO: Bloco de cálculo da Dwadasamsa ---
+    const degreesInSignDecimal = longitude % 30; // Pega os graus com casas decimais
+    const dwadasamsaSign = getDwadasamsaSign(signName, degreesInSignDecimal);
+    // --- Fim do novo bloco ---
+
     // Gera os IDs no formato correto do CSV
     const planetSignId = `${planetId}_${signName}`;
     const sabianSymbolId = `${signName}_${degree}`;
@@ -53,7 +61,8 @@ function mapPlanetToIds(planet, aspects) {
         planetName: name.charAt(0).toUpperCase() + name.slice(1),
         planetSignId,
         sabianSymbolId,
-        aspectIds
+        aspectIds,
+        dwadasamsaSign // NOVO: Adiciona a informação ao objeto de retorno
     };
 }
 
