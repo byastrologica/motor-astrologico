@@ -16,6 +16,7 @@ const { getDwadasamsaSign } = require('./getDwadasamsaSign');
 const { getDignities } = require('./dignityCalculator');
 const { findAspectPatterns } = require('./aspectPatternFinder');
 const { getDegreeType } = require('./degreeClassifier');
+const { getMoonPhase } = require('./moonPhaseCalculator');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -141,6 +142,7 @@ app.post('/calculate', async (req, res) => {
         }
 
         const aspectPatterns = findAspectPatterns(foundAspects);
+        const moonPhase = getMoonPhase(calculatedPlanets.sun.longitude, calculatedPlanets.moon.longitude);
         const sunSignInfo = getZodiacSign(calculatedPlanets.sun.longitude);
         const isDiurnal = ZODIAC_SIGNS.indexOf(sunSignInfo.name) < 6;
         const classicalPlanets = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'north_node'];
@@ -159,6 +161,7 @@ app.post('/calculate', async (req, res) => {
 
         const responseData = {
             message: "Cálculo completo do mapa astral realizado com sucesso!",
+            moon_phase: moonPhase,
             planets: calculatedPlanets,
             aspects: foundAspects,
             aspect_patterns: aspectPatterns
