@@ -137,4 +137,71 @@ app.post('/calculate', async (req, res) => {
             { id: SE_MERCURY, name: 'mercury' }, { id: SE_VENUS, name: 'venus' },
             { id: SE_MARS, name: 'mars' }, { id: SE_JUPITER, name: 'jupiter' },
             { id: SE_SATURN, name: 'saturn' }, { id: SE_URANUS, name: 'uranus' },
-            { id: SE_NEPTUNE, name: 'neptune' }, { id: SE_PL
+            { id: SE_NEPTUNE, name: 'neptune' }, { id: SE_PLUTO, name: 'pluto' },
+            { id: SE_TRUE_NODE, name: 'north_node' }
+        ];
+
+        const calculatedPlanets = {};
+        for (const planet of planetsToCalc) {
+            const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
+            calculatedPlanets[planet.name] = { longitude: position.data[0], latitude: position.data[1], speed: position.data[3] };
+        }
+        
+        const aspectsConfig = {
+            conjunction: { angle: 0, orb: 10 }, opposition: { angle: 180, orb: 10 },
+            trine: { angle: 120, orb: 10 }, square: { angle: 90, orb: 10 },
+            sextile: { angle: 60, orb: 6 }
+        };
+        const planetPoints = Object.keys(calculatedPlanets).map(name => ({ name: name, longitude: calculatedPlanets[name].longitude }));
+        const foundAspects = [];
+        for (let i = 0; i < planetPoints.length; i++) {
+            for (let j = i + 1; j < planetPoints.length; j++) {
+                const p1 = planetPoints[i]; const p2 = planetPoints[j];
+                let dist = Math.abs(p1.longitude - p2.longitude);
+                if (dist > 180) dist = 360 - dist;
+                for (const aspectName in aspectsConfig) {
+                    const aspect = aspectsConfig[aspectName];
+                    const orb = Math.abs(dist - aspect.angle);
+                    if (orb <= aspect.orb) {
+                        foundAspects.push({ point1: p1.name, point2: p2.name, aspect_type: aspectName, orb_degrees: parseFloat(orb.toFixed(2)) });
+                    }
+                }
+            }
+        }
+
+        const { ZODIAC_SIGNS } = require('./constants'); // Precisamos disso aqui
+        const sunSignInfo = getZodiacSign(calculatedPlanets.sun.longitude);
+        const isDiurnal = ZODIAC_SIGNS.indexOf(sunSignInfo.name) >= ZODIAC_SIGNS.indexOf('LIBRA');
+
+        for (const planetName in calculatedPlanets) {
+            const planet = calculatedPlanets[planetName];
+            const { name: signName, decimalDegrees } = getZodiacSign(planet.longitude);
+            planet.sign = signName;
+            planet.dwadasamsaSign = getDwadasamsaSign(signName, decimalDegrees);
+            planet.dignities = getDignities(planetName, signName, decimalDegrees, isDiurnal);
+        }
+
+        const responseData = {
+            message: "Cálculo completo do mapa astral realizado com sucesso!",
+            planets: calculatedPlanets,
+            aspects: foundAspects
+        };
+
+        res.status(200).json(responseData);
+
+    } catch (error) {
+        console.error("Erro no cálculo:", error);
+        res.status(500).json({ error: 'Erro interno ao realizar o cálculo.', details: error.toString() });
+    }
+});
+
+// =================================================================
+// INICIALIZAÇÃO DO SERVIDOR
+// =================================================================
+app.get('/', (req, res) => {
+    res.send('Servidor astrológico no ar. Use o endpoint POST /calculate para cálculos e GET /api/cidades para autocomplete.');
+});
+
+app.listen(PORT, () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
+});
