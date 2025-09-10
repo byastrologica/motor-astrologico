@@ -1,4 +1,4 @@
-// index.js (Versão Final com Padrões de Aspetos)
+// index.js (Versão Final e Completa)
 
 require('dotenv').config();
 const express = require('express');
@@ -14,7 +14,7 @@ const {
 const { getZodiacSign } = require('./mapper');
 const { getDwadasamsaSign } = require('./getDwadasamsaSign');
 const { getDignities } = require('./dignityCalculator');
-const { findAspectPatterns } = require('./aspectPatternFinder'); // <<< NOVO
+const { findAspectPatterns } = require('./aspectPatternFinder');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,32 +23,104 @@ app.use(cors());
 
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
-// ... (suas funções geocodeLocation e buscarCidade vão aqui) ...
+async function geocodeLocation(locationString) {
+    const CHAVE_API = process.env.GEOAPIFY_API_KEY;
+    if (!CHAVE_API) { throw new Error("Chave de API da Geoapify não configurada."); }
+    const url = `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(locationString)}&lang=pt&limit=1&format=json&apiKey=${CHAVE_API}`;
+    try {
+        const response = await axios.get(url);
+        if (response.data.results && response.data.results.length > 0) {
+            const result = response.data.results[0];
+            return { latitude: result.lat, longitude: result.lon, timezone: result.timezone.name };
+        }
+        return null;
+    } catch (error) {
+        console.error("Erro ao geocodificar localização:", error.message);
+        throw new Error("Erro ao comunicar com o serviço de geocodificação.");
+    }
+}
+async function buscarCidade(textoDigitado) {
+    const CHAVE_API = process.env.GEOAPIFY_API_KEY;
+    if (!CHAVE_API) { throw new Error("Configuração do servidor incompleta."); }
+    const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(textoDigitado)}&lang=pt&limit=5&type=city&format=json&apiKey=${CHAVE_API}`;
+    try {
+        const response = await axios.get(url);
+        const resultadosLimpos = response.data.results ? response.data.results.map(r => ({
+            nome_formatado: r.formatted, latitude: r.lat, longitude: r.lon, fuso_horario: r.timezone.name
+        })) : [];
+        return resultadosLimpos;
+    } catch (error) { throw new Error("Erro ao comunicar com o serviço de geolocalização."); }
+}
 
-app.get('/api/cidades', async (req, res) => { /* ... */ });
+app.get('/api/cidades', async (req, res) => {
+    const { busca } = req.query;
+    if (!busca || busca.trim().length < 2) {
+        return res.status(400).json({ error: 'Parâmetro "busca" é obrigatório e deve ter ao menos 2 caracteres.' });
+    }
+    try {
+        const resultados = await buscarCidade(busca);
+        res.status(200).json(resultados);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 app.post('/calculate', async (req, res) => {
     try {
-        // ... (toda a sua lógica inicial de cálculo do Julian Day vai aqui) ...
-
         const { year, month, day, hour, locationString, latitude, longitude, utcOffset } = req.body;
-        // ... (código de validação e geocodificação) ...
-        const jd_ut_obj = await sweph.utc_to_jd(/*...*/);
+        if (year == null || month == null || day == null || hour == null || (!locationString && (latitude == null || longitude == null))) {
+            return res.status(400).json({ error: 'Dados de entrada incompletos.' });
+        }
+        let lat, lon, timezone;
+        if (latitude !== undefined && longitude !== undefined) {
+            lat = parseFloat(latitude);
+            lon = parseFloat(longitude);
+        } else {
+            const geoResult = await geocodeLocation(locationString);
+            if (!geoResult) { return res.status(400).json({ error: `Coordenadas não encontradas para "${locationString}".` }); }
+            lat = geoResult.latitude;
+            lon = geoResult.longitude;
+            timezone = geoResult.timezone;
+        }
+        const hourFloat = parseFloat(hour);
+        const hours = Math.floor(hourFloat);
+        const minutes = Math.round((hourFloat - hours) * 60);
+        let birthTimeUtc;
+        if (utcOffset !== undefined && utcOffset !== null) {
+            const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+            const offsetInMinutes = utcOffset * 60;
+            birthTimeUtc = moment(dateString).utcOffset(offsetInMinutes, true).utc();
+        } else {
+            if (!timezone) { timezone = moment.tz.guess(lat, lon); }
+            const birthTimeLocal = moment.tz({ year, month: month - 1, day, hour: hours, minute: minutes }, timezone);
+            birthTimeUtc = birthTimeLocal.clone().utc();
+        }
+        const utcYear = birthTimeUtc.year();
+        const utcMonth = birthTimeUtc.month() + 1;
+        const utcDay = birthTimeUtc.date();
+        const utcHour = birthTimeUtc.hour() + (birthTimeUtc.minute() / 60) + (birthTimeUtc.second() / 3600);
+        const jd_ut_obj = await sweph.utc_to_jd(utcYear, utcMonth, utcDay, utcHour, 0, 0, 1);
         const julianDay = jd_ut_obj.data[0];
 
-        const planetsToCalc = [ /* ... */ ];
+        const planetsToCalc = [
+            { id: SE_SUN, name: 'sun' }, { id: SE_MOON, name: 'moon' },
+            { id: SE_MERCURY, name: 'mercury' }, { id: SE_VENUS, name: 'venus' },
+            { id: SE_MARS, name: 'mars' }, { id: SE_JUPITER, name: 'jupiter' },
+            { id: SE_SATURN, name: 'saturn' }, { id: SE_URANUS, name: 'uranus' },
+            { id: SE_NEPTUNE, name: 'neptune' }, { id: SE_PLUTO, name: 'pluto' },
+            { id: SE_TRUE_NODE, name: 'north_node' }
+        ];
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
             const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
             calculatedPlanets[planet.name] = { longitude: position.data[0], latitude: position.data[1], speed: position.data[3] };
         }
         
-        // --- CÁLCULO DE ASPETOS ATUALIZADO ---
         const aspectsConfig = {
             conjunction: { angle: 0, orb: 10 }, opposition: { angle: 180, orb: 10 },
             trine: { angle: 120, orb: 10 }, square: { angle: 90, orb: 10 },
             sextile: { angle: 60, orb: 6 },
-            quincunx: { angle: 150, orb: 3 } // Quincunce adicionado
+            quincunx: { angle: 150, orb: 3 }
         };
         const planetPoints = Object.keys(calculatedPlanets).map(name => ({ name: name, longitude: calculatedPlanets[name].longitude }));
         const foundAspects = [];
@@ -67,7 +139,6 @@ app.post('/calculate', async (req, res) => {
             }
         }
 
-        // --- NOVO: ENCONTRA PADRÕES DE ASPETOS ---
         const aspectPatterns = findAspectPatterns(foundAspects);
 
         const sunSignInfo = getZodiacSign(calculatedPlanets.sun.longitude);
@@ -75,23 +146,34 @@ app.post('/calculate', async (req, res) => {
         const classicalPlanets = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'north_node'];
 
         for (const planetName in calculatedPlanets) {
-            // ... (sua lógica de enriquecimento de planetas com signo, dwadasamsa e dignidades vai aqui) ...
+            const planet = calculatedPlanets[planetName];
+            const { name: signName, decimalDegrees } = getZodiacSign(planet.longitude);
+            planet.sign = signName;
+            planet.dwadasamsaSign = getDwadasamsaSign(signName, decimalDegrees);
+            
+            if (classicalPlanets.includes(planetName)) {
+                planet.dignities = getDignities(planetName, signName, decimalDegrees, isDiurnal);
+            }
         }
 
-        // --- RESPOSTA FINAL ATUALIZADA ---
         const responseData = {
             message: "Cálculo completo do mapa astral realizado com sucesso!",
             planets: calculatedPlanets,
             aspects: foundAspects,
-            aspect_patterns: aspectPatterns // <<< CAMPO ADICIONADO
+            aspect_patterns: aspectPatterns
         };
 
         res.status(200).json(responseData);
 
     } catch (error) {
         console.error("Erro no cálculo:", error);
-        res.status(500).json({ error: 'Erro interno.', details: error.toString() });
+        res.status(500).json({ error: 'Erro interno ao realizar o cálculo.', details: error.toString() });
     }
 });
 
-// ... (Resto do seu código do servidor) ...
+app.get('/', (req, res) => {
+    res.send('Servidor astrológico no ar.');
+});
+app.listen(PORT, () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
+});
