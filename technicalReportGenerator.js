@@ -1,4 +1,4 @@
-// technicalReportGenerator.js (Versão Final e Corrigida)
+// technicalReportGenerator.js (Versão Final com Símbolo Sabiano e Latitude)
 
 // --- FUNÇÕES AUXILIARES DE FORMATAÇÃO ---
 
@@ -29,13 +29,18 @@ function formatCondition(dignities) {
         return `Condição: ${majorDignities.join(' e ')}`;
     }
     
-    // CORREÇÃO: Se não houver dignidades maiores, é Peregrino.
     return "Condição: Peregrino";
 }
 
 function formatDetails(planet) {
     const details = [];
+    const degree = Math.floor(planet.longitude % 30);
+    const sabianDegree = degree + 1;
+
     details.push(planet.degree_type === 'Normal' ? 'Grau Normal' : `Grau ${planet.degree_type}`);
+    
+    // ADICIONADO: Símbolo Sabiano
+    details.push(`Símbolo Sabiano: Grau ${sabianDegree}`);
 
     if (planet.dignities) {
         if(planet.dignities.term) details.push(`Termo de ${capitalize(planet.dignities.term)}`);
@@ -44,6 +49,12 @@ function formatDetails(planet) {
 
     details.push(`Dwadasamsa em ${planet.dwadasamsaSign}`);
     details.push(`Movimento ${planet.speed < 0 ? 'retrógrado' : 'direto'}`);
+
+    // ADICIONADO: Latitude
+    // A latitude 0.0 para o Nodo Norte é normal
+    if (planet.latitude !== undefined) {
+        details.push(`Latitude: ${planet.latitude.toFixed(4)}`);
+    }
 
     return `Detalhes: ${details.join('. ')}.`;
 }
@@ -92,7 +103,6 @@ function generateTechnicalReport(data) {
 
             report += `${pattern.name} ${index + 1}: Oposição ${p1_name} (${p1_pos}) - ${p2_name} (${p2_pos}) com Ápice no ${apex_name} (${apex_pos})\n`;
             
-            // CORREÇÃO: Lógica para encontrar e formatar os aspetos específicos
             const opposition = findAspectBetween(otherPlanets[0], otherPlanets[1], aspects);
             const square1 = findAspectBetween(otherPlanets[0], apex, aspects);
             const square2 = findAspectBetween(otherPlanets[1], apex, aspects);
