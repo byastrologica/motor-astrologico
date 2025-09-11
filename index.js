@@ -18,6 +18,7 @@ const { findAspectPatterns } = require('./aspectPatternFinder');
 const { getDegreeType } = require('./degreeClassifier');
 const { getMoonPhase } = require('./moonPhaseCalculator');
 const { generateTechnicalReport } = require('./technicalReportGenerator');
+const { calculateAspects } = require('./aspectCalculator');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -127,28 +128,7 @@ app.post('/calculate', async (req, res) => {
             speed: calculatedPlanets.north_node.speed
         };
         
-        const aspectsConfig = {
-            conjunction: { angle: 0, orb: 10 }, opposition: { angle: 180, orb: 10 },
-            trine: { angle: 120, orb: 10 }, square: { angle: 90, orb: 10 },
-            sextile: { angle: 60, orb: 6 },
-            quincunx: { angle: 150, orb: 3 }
-        };
-        const planetPoints = Object.keys(calculatedPlanets).map(name => ({ name: name, longitude: calculatedPlanets[name].longitude }));
-        const foundAspects = [];
-        for (let i = 0; i < planetPoints.length; i++) {
-            for (let j = i + 1; j < planetPoints.length; j++) {
-                const p1 = planetPoints[i]; const p2 = planetPoints[j];
-                let dist = Math.abs(p1.longitude - p2.longitude);
-                if (dist > 180) dist = 360 - dist;
-                for (const aspectName in aspectsConfig) {
-                    const aspect = aspectsConfig[aspectName];
-                    const orb = Math.abs(dist - aspect.angle);
-                    if (orb <= aspect.orb) {
-                        foundAspects.push({ point1: p1.name, point2: p2.name, aspect_type: aspectName, orb_degrees: parseFloat(orb.toFixed(2)) });
-                    }
-                }
-            }
-        }
+        const foundAspects = calculateAspects(calculatedPlanets);
 
         const enrichedData = {
             moon_phase: getMoonPhase(calculatedPlanets.sun.longitude, calculatedPlanets.moon.longitude),
