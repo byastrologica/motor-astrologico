@@ -1,4 +1,4 @@
-// index.js (Versão Estável Restaurada)
+// index.js (Versão Atualizada com calculateCusps)
 
 require('dotenv').config();
 const express = require('express');
@@ -17,6 +17,7 @@ const { getDignities } = require('./dignityCalculator');
 const { findAspectPatterns } = require('./aspectPatternFinder');
 const { getDegreeType } = require('./degreeClassifier');
 const { getMoonPhase } = require('./moonPhaseCalculator');
+const calculateCusps = require('./calculateCusps'); // 🔥 integração adicionada
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -41,6 +42,7 @@ async function geocodeLocation(locationString) {
         throw new Error("Erro ao comunicar com o serviço de geocodificação.");
     }
 }
+
 async function buscarCidade(textoDigitado) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY;
     if (!CHAVE_API) { throw new Error("Configuração do servidor incompleta."); }
@@ -73,6 +75,7 @@ app.post('/calculate', async (req, res) => {
         if (year == null || month == null || day == null || hour == null || (!locationString && (latitude == null || longitude == null))) {
             return res.status(400).json({ error: 'Dados de entrada incompletos.' });
         }
+
         let lat, lon, timezone;
         if (latitude !== undefined && longitude !== undefined) {
             lat = parseFloat(latitude);
@@ -84,9 +87,11 @@ app.post('/calculate', async (req, res) => {
             lon = geoResult.longitude;
             timezone = geoResult.timezone;
         }
+
         const hourFloat = parseFloat(hour);
         const hours = Math.floor(hourFloat);
         const minutes = Math.round((hourFloat - hours) * 60);
+
         let birthTimeUtc;
         if (utcOffset !== undefined && utcOffset !== null) {
             const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
@@ -97,10 +102,12 @@ app.post('/calculate', async (req, res) => {
             const birthTimeLocal = moment.tz({ year, month: month - 1, day, hour: hours, minute: minutes }, timezone);
             birthTimeUtc = birthTimeLocal.clone().utc();
         }
+
         const utcYear = birthTimeUtc.year();
         const utcMonth = birthTimeUtc.month() + 1;
         const utcDay = birthTimeUtc.date();
         const utcHour = birthTimeUtc.hour() + (birthTimeUtc.minute() / 60) + (birthTimeUtc.second() / 3600);
+
         const jd_ut_obj = await sweph.utc_to_jd(utcYear, utcMonth, utcDay, utcHour, 0, 0, 1);
         const julianDay = jd_ut_obj.data[0];
 
@@ -112,18 +119,20 @@ app.post('/calculate', async (req, res) => {
             { id: SE_NEPTUNE, name: 'neptune' }, { id: SE_PLUTO, name: 'pluto' },
             { id: SE_TRUE_NODE, name: 'north_node' }
         ];
+
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
             const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
             calculatedPlanets[planet.name] = { longitude: position.data[0], latitude: position.data[1], speed: position.data[3] };
         }
-        
+
         const aspectsConfig = {
             conjunction: { angle: 0, orb: 10 }, opposition: { angle: 180, orb: 10 },
             trine: { angle: 120, orb: 10 }, square: { angle: 90, orb: 10 },
             sextile: { angle: 60, orb: 6 },
             quincunx: { angle: 150, orb: 3 }
         };
+
         const planetPoints = Object.keys(calculatedPlanets).map(name => ({ name: name, longitude: calculatedPlanets[name].longitude }));
         const foundAspects = [];
         for (let i = 0; i < planetPoints.length; i++) {
@@ -159,12 +168,22 @@ app.post('/calculate', async (req, res) => {
             }
         }
 
+        // 🔥 Chamando cálculo de cúspides
+        const cuspsResult = calculateCusps({
+            sideralTime: { h: birthTimeUtc.hour(), m: birthTimeUtc.minute(), s: birthTimeUtc.second() },
+            latitude: { deg: Math.abs(Math.trunc(lat)), min: Math.abs((lat % 1) * 60), sec: 0, dir: lat >= 0 ? 'N' : 'S' },
+            longitude: { deg: Math.abs(Math.trunc(lon)), min: Math.abs((lon % 1) * 60), sec: 0, dir: lon >= 0 ? 'E' : 'W' },
+            obliquity: 23.4365, // valor médio; pode ser refinado
+            houseSystem: 'P'   // Placidus (ajuste conforme desejar)
+        });
+
         const responseData = {
             message: "Cálculo completo do mapa astral realizado com sucesso!",
             moon_phase: moonPhase,
             planets: calculatedPlanets,
             aspects: foundAspects,
-            aspect_patterns: aspectPatterns
+            aspect_patterns: aspectPatterns,
+            cusps: cuspsResult // 🔥 resultado das casas adicionado
         };
 
         res.status(200).json(responseData);
@@ -178,6 +197,7 @@ app.post('/calculate', async (req, res) => {
 app.get('/', (req, res) => {
     res.send('Servidor astrológico no ar.');
 });
+
 app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`);
 });
