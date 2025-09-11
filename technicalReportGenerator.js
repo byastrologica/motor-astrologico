@@ -13,8 +13,8 @@ function capitalize(str) {
     return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-function formatCondition(dignities) {
-    if (!dignities) return "Condição: Sem dignidades clássicas";
+function getConditionString(dignities) {
+    if (!dignities) return "Sem dignidades clássicas";
     const majorDignities = [];
     if (dignities.domicile) majorDignities.push("Domicílio");
     if (dignities.exaltation) majorDignities.push("Exaltação");
@@ -22,26 +22,9 @@ function formatCondition(dignities) {
     if (dignities.fall) majorDignities.push("Queda");
     if (dignities.triplicity) majorDignities.push("Triplicidade");
     if (majorDignities.length > 0) {
-        return `Condição: ${majorDignities.join(' e ')}`;
+        return majorDignities.join(' e ');
     }
-    return "Condição: Peregrino";
-}
-
-function formatDetails(planet) {
-    const details = [];
-    const degree = Math.floor(planet.longitude % 30);
-    const sabianDegree = degree + 1;
-    details.push(planet.degree_type === 'Normal' ? 'Grau Normal' : `Grau ${planet.degree_type}`);
-    details.push(`Símbolo Sabiano: Grau ${sabianDegree}`);
-    if (planet.dignities) {
-        if(planet.dignities.term) details.push(`Termo de ${capitalize(planet.dignities.term)}`);
-        if(planet.dignities.face) details.push(`${planet.dignities.decan}º Decanato (Face de ${capitalize(planet.dignities.face)})`);
-    }
-    if (planet.dwadasamsaSign) {
-        details.push(`Dwadasamsa em ${planet.dwadasamsaSign}`);
-    }
-    details.push(`Movimento ${planet.speed < 0 ? 'retrógrado' : 'direto'}`);
-    return `Detalhes: ${details.join('. ')}.`;
+    return "Peregrino";
 }
 
 function findAspectBetween(p1, p2, aspects) {
@@ -64,7 +47,7 @@ function generateTechnicalReport(data) {
     };
     const ASPECT_NAMES_MAP = {
         conjunction: 'Conjunção', opposition: 'Oposição', square: 'Quadratura',
-        trine: 'Trígono', sextile: 'Sextil', quincunce: 'Quincunce'
+        trine: 'Trígono', sextile: 'Sextil', quincunx: 'Quincunce'
     };
 
     report += "--- Posição e Condições Planetárias ---\n\n";
@@ -74,7 +57,9 @@ function generateTechnicalReport(data) {
         if (!p) return;
 
         const planetTitle = PLANET_NAMES_MAP[planetName] || capitalize(planetName);
-        
+        const degree = Math.floor(p.longitude % 30);
+        const sabianDegree = degree + 1;
+
         report += `${planetTitle}: ${decimalToDMS(p.longitude % 30)} de ${p.sign}\n\n`;
         report += `Movimento: ${p.speed < 0 ? 'Retrógrado' : 'Direto'}\n`;
         report += `Condição: ${getConditionString(p.dignities)}\n`;
@@ -86,8 +71,6 @@ function generateTechnicalReport(data) {
             report += `Dwadasamsa: ${p.dwadasamsaSign}\n`;
         }
         report += `Tipo de Grau: ${p.degree_type}\n`;
-        const degree = Math.floor(p.longitude % 30);
-        const sabianDegree = degree + 1;
         report += `Símbolo Sabiano: Grau ${sabianDegree}\n`;
         if (p.dignities && p.dignities.term) {
             report += `Termo: ${PLANET_NAMES_MAP[p.dignities.term]}\n`;
@@ -135,7 +118,7 @@ function generateTechnicalReport(data) {
                 const opp1 = findAspectBetween(p1, p3, aspects) || findAspectBetween(p1, p4, aspects) || findAspectBetween(p1, p2, aspects);
                 if(opp1){
                     const p1_partner = opp1.point1 === p1 ? opp1.point2 : opp1.point1;
-                    const remaining_planets = [p1, p2, p3, p4].filter(p => p !== opp1.point1 && p !== opp1.point2);
+                    const remaining_planets = [p1,p2,p3,p4].filter(p => p !== opp1.point1 && p !== opp1.point2);
                     const opp2 = findAspectBetween(remaining_planets[0], remaining_planets[1], aspects);
                     const sq1 = findAspectBetween(opp1.point1, opp2.point1, aspects);
                     const sq2 = findAspectBetween(opp1.point1, opp2.point2, aspects);
