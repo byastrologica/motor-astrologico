@@ -1,5 +1,10 @@
-// aspectPatternFinder.js (Versão Otimizada)
+// aspectPatternFinder.js (Versão Final e Corrigida)
 
+/**
+ * Função principal para encontrar todas as configurações de aspetos num mapa.
+ * @param {Array<object>} aspects - A lista de aspetos calculados.
+ * @returns {Array<object>} Uma lista de padrões encontrados.
+ */
 function findAspectPatterns(aspects) {
     const patterns = [];
 
@@ -15,10 +20,11 @@ function findAspectPatterns(aspects) {
     patterns.push(...findGrandTrines(aspectsByType));
     patterns.push(...findYods(aspectsByType));
     patterns.push(...findGrandCrosses(aspectsByType));
-    
+
     return removeDuplicatePatterns(patterns);
 }
 
+// Encontra T-Squares (Oposição + 2 Quadraturas)
 function findTSquares(aspectsByType) {
     const tsquares = [];
     for (const opp of aspectsByType.opposition) {
@@ -38,12 +44,12 @@ function findTSquares(aspectsByType) {
     return tsquares;
 }
 
+// Encontra Grandes Trígonos (3 Trígonos)
 function findGrandTrines(aspectsByType) {
     const grandTrines = [];
     const trines = aspectsByType.trine;
     if (trines.length < 3) return grandTrines;
 
-    // Mapeia todas as conexões de trígono para cada planeta
     const planetConnections = {};
     trines.forEach(trine => {
         if (!planetConnections[trine.point1]) planetConnections[trine.point1] = new Set();
@@ -53,16 +59,13 @@ function findGrandTrines(aspectsByType) {
     });
 
     const planets = Object.keys(planetConnections);
-    // Combina todos os planetas 3 a 3 para encontrar triângulos fechados
     for (let i = 0; i < planets.length; i++) {
         for (let j = i + 1; j < planets.length; j++) {
             for (let k = j + 1; k < planets.length; k++) {
                 const p1 = planets[i];
                 const p2 = planets[j];
                 const p3 = planets[k];
-
-                // Verifica se p1 está conectado a p2 e p3, e se p2 está conectado a p3
-                if (planetConnections[p1].has(p2) && planetConnections[p1].has(p3) && planetConnections[p2].has(p3)) {
+                if (planetConnections[p1] && planetConnections[p1].has(p2) && planetConnections[p1].has(p3) && planetConnections[p2] && planetConnections[p2].has(p3)) {
                     grandTrines.push({ name: 'Grande Trígono', planets: [p1, p2, p3].sort() });
                 }
             }
@@ -71,6 +74,7 @@ function findGrandTrines(aspectsByType) {
     return grandTrines;
 }
 
+// Encontra YODs (Sextil + 2 Quincunces)
 function findYods(aspectsByType) {
     const yods = [];
     for (const sex of aspectsByType.sextile) {
@@ -90,15 +94,19 @@ function findYods(aspectsByType) {
     return yods;
 }
 
+// Encontra Grandes Cruzes (2 Oposições + 4 Quadraturas)
 function findGrandCrosses(aspectsByType) {
     const grandCrosses = [];
-    for (const opp1 of aspectsByType.opposition) {
-        const [p1, p3] = [opp1.point1, opp1.point2];
-        for (const opp2 of aspectsByType.opposition) {
+    for (let i = 0; i < aspectsByType.opposition.length; i++) {
+        for (let j = i + 1; j < aspectsByType.opposition.length; j++) {
+            const opp1 = aspectsByType.opposition[i];
+            const opp2 = aspectsByType.opposition[j];
+            
+            const [p1, p3] = [opp1.point1, opp1.point2];
             const [p2, p4] = [opp2.point1, opp2.point2];
             const planets = new Set([p1, p2, p3, p4]);
             if (planets.size !== 4) continue;
-            
+
             const p1_sq_p2 = aspectsByType.square.some(s => (s.point1 === p1 && s.point2 === p2) || (s.point1 === p2 && s.point2 === p1));
             const p1_sq_p4 = aspectsByType.square.some(s => (s.point1 === p1 && s.point2 === p4) || (s.point1 === p4 && s.point2 === p1));
             const p3_sq_p2 = aspectsByType.square.some(s => (s.point1 === p3 && s.point2 === p2) || (s.point1 === p2 && s.point2 === p3));
@@ -112,6 +120,7 @@ function findGrandCrosses(aspectsByType) {
     return grandCrosses;
 }
 
+// Garante que cada padrão único seja listado apenas uma vez
 function removeDuplicatePatterns(patterns) {
     const seen = new Set();
     return patterns.filter(pattern => {
