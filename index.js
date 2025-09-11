@@ -70,6 +70,8 @@ app.get('/api/cidades', async (req, res) => {
 });
 
 app.post('/calculate', async (req, res) => {
+    let prompt; // Declarado aqui para estar acessível no bloco catch
+
     try {
         const { year, month, day, hour, locationString, latitude, longitude, utcOffset } = req.body;
         if (year == null || month == null || day == null || hour == null || (!locationString && (latitude == null || longitude == null))) {
@@ -165,7 +167,7 @@ app.post('/calculate', async (req, res) => {
             }
         }
         
-        const prompt = generateFreeReportPrompt(enrichedData);
+        prompt = generateFreeReportPrompt(enrichedData);
         const technicalReport = generateTechnicalReport(enrichedData);
 
         const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -184,17 +186,20 @@ app.post('/calculate', async (req, res) => {
                 technical_report: technicalReport
             });
         } else {
-            // Se o Gemini não retornar um texto, retorne pelo menos o relatório técnico
-            res.status(200).json({
-                message: "Cálculo técnico concluído, mas a interpretação não pôde ser gerada.",
+            res.status(502).json({
+                error: 'Resposta inválida da API de interpretação.',
                 technical_report: technicalReport,
-                raw_data: enrichedData
+                prompt_sent: prompt
             });
         }
 
     } catch (error) {
         console.error("Erro no processo de cálculo ou interpretação:", error.response ? error.response.data : error.message);
-        res.status(500).json({ error: 'Erro interno ao gerar a análise.', details: error.toString() });
+        res.status(500).json({
+            error: 'Erro interno ao gerar a análise.',
+            details: error.toString(),
+            prompt_sent: prompt || "O prompt não foi gerado antes do erro ocorrer."
+        });
     }
 });
 
