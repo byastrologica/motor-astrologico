@@ -1,4 +1,4 @@
-// dignityCalculator.js (Versão Final e Completa)
+// dignityCalculator.js
 
 const { ZODIAC_SIGNS } = require('./constants');
 
@@ -15,7 +15,8 @@ const DIGNITIES = {
     mars:    { domicile: ['ARIES', 'ESCORPIAO'], exaltation: 'CAPRICORNIO' },
     jupiter: { domicile: ['SAGITARIO', 'PEIXES'], exaltation: 'CANCER' },
     saturn:  { domicile: ['CAPRICORNIO', 'AQUARIO'], exaltation: 'LIBRA' },
-    north_node: { domicile: 'GEMEOS', exaltation: 'VIRGEM' }
+    north_node: { domicile: 'GEMEOS', exaltation: 'VIRGEM' },
+    south_node: { domicile: 'SAGITARIO', exaltation: 'PEIXES' } 
 };
 const TRIPLICITY_RULERS = {
     FIRE:  { signs: ['ARIES', 'LEAO', 'SAGITARIO'], day: 'sun', night: 'jupiter' },
