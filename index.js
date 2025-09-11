@@ -1,4 +1,4 @@
-// index.js
+// index.js (Versão Final com Ordem Corrigida)
 
 require('dotenv').config();
 const express = require('express');
@@ -129,31 +129,37 @@ app.post('/calculate', async (req, res) => {
             speed: calculatedPlanets.north_node.speed
         };
         
-        const foundAspects = calculateAspects(calculatedPlanets);
-        const enrichedData = {
-            moon_phase: getMoonPhase(calculatedPlanets.sun.longitude, calculatedPlanets.moon.longitude),
-            planets: calculatedPlanets,
-            aspects: foundAspects,
-            aspect_patterns: findAspectPatterns(foundAspects),
-            balances: calculateBalances(calculatedPlanets)
-        };
-        
-        const sunSignInfo = getZodiacSign(enrichedData.planets.sun.longitude);
+        // --- ORDEM CORRIGIDA ---
+
+        // 1. PRIMEIRO, ENRIQUECE OS PLANETAS COM TODOS OS DADOS BÁSICOS
+        const sunSignInfo = getZodiacSign(calculatedPlanets.sun.longitude);
         const isDiurnal = ZODIAC_SIGNS.indexOf(sunSignInfo.name) < 6;
         const classicalPlanets = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'north_node', 'south_node'];
 
-        for (const planetName in enrichedData.planets) {
-            const planet = enrichedData.planets[planetName];
+        for (const planetName in calculatedPlanets) {
+            const planet = calculatedPlanets[planetName];
             const { name: signName, decimalDegrees } = getZodiacSign(planet.longitude);
-            planet.sign = signName;
+            planet.sign = signName; // O CAMPO 'SIGN' É ADICIONADO AQUI
             planet.degree_type = getDegreeType(signName, decimalDegrees);
             planet.dwadasamsaSign = getDwadasamsaSign(signName, decimalDegrees);
             if (classicalPlanets.includes(planetName)) {
                 planet.dignities = getDignities(planetName, signName, decimalDegrees, isDiurnal);
             }
         }
+
+        // 2. AGORA, COM OS PLANETAS JÁ ENRIQUECIDOS, CALCULA O RESTO
+        const foundAspects = calculateAspects(calculatedPlanets);
+        
+        const enrichedData = {
+            moon_phase: getMoonPhase(calculatedPlanets.sun.longitude, calculatedPlanets.moon.longitude),
+            planets: calculatedPlanets,
+            aspects: foundAspects,
+            aspect_patterns: findAspectPatterns(foundAspects),
+            balances: calculateBalances(calculatedPlanets) // AGORA ESTA FUNÇÃO RECEBE OS SIGNOS
+        };
         
         const technicalReport = generateTechnicalReport(enrichedData);
+
         res.setHeader('Content-Type', 'text/plain; charset=utf-8');
         res.status(200).send(technicalReport);
 
