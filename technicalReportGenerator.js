@@ -1,4 +1,4 @@
-// technicalReportGenerator.js (Versão Final com Layout Ajustado)
+// technicalReportGenerator.js (Versão Final com Layout Corrigido)
 
 function decimalToDMS(decimal) {
     if (decimal === undefined || decimal === null) return '';
@@ -54,12 +54,8 @@ function generateTechnicalReport(data) {
         const p = planets[planetName];
         if (!p) return;
 
-        // --- AJUSTE DE LAYOUT ADICIONADO AQUI ---
-        // Adiciona um separador antes de cada planeta, exceto o primeiro (o Sol)
-        if (index > 0) {
-            report += "----------------------------------------\n\n";
-        }
-
+        // A linha separadora extra foi removida daqui.
+        
         report += "--- Posição e Condições Planetárias ---\n\n";
 
         const planetTitle = PLANET_NAMES_MAP[planetName] || capitalize(planetName);
@@ -107,10 +103,14 @@ function generateTechnicalReport(data) {
                 }
             });
         }
+        
+        // Adiciona um separador visual apenas se não for o último planeta
+        if (index < planetOrder.length - 1) {
+             report += "\n";
+        }
     });
 
     if (aspect_patterns && aspect_patterns.length > 0) {
-        report += "----------------------------------------\n\n";
         report += "--- Configurações de Aspetos Principais ---\n\n";
         aspect_patterns.forEach((pattern, index) => {
              const planetDetails = pattern.planets.map(pName => {
