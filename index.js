@@ -1,4 +1,4 @@
-// index.js (Versão Atualizada com calculateCusps)
+// index.js (Versão Atualizada e Corrigida)
 
 require('dotenv').config();
 const express = require('express');
@@ -17,7 +17,7 @@ const { getDignities } = require('./dignityCalculator');
 const { findAspectPatterns } = require('./aspectPatternFinder');
 const { getDegreeType } = require('./degreeClassifier');
 const { getMoonPhase } = require('./moonPhaseCalculator');
-const calculateCusps = require('./calculateCusps'); // 🔥 integração adicionada
+const calculateCusps = require('./calculateCusps'); // ✅ versão corrigida
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -26,36 +26,35 @@ app.use(cors());
 
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
+// ---------------- GEOCODIFICAÇÃO ----------------
 async function geocodeLocation(locationString) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY;
-    if (!CHAVE_API) { throw new Error("Chave de API da Geoapify não configurada."); }
+    if (!CHAVE_API) throw new Error("Chave de API da Geoapify não configurada.");
     const url = `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(locationString)}&lang=pt&limit=1&format=json&apiKey=${CHAVE_API}`;
-    try {
-        const response = await axios.get(url);
-        if (response.data.results && response.data.results.length > 0) {
-            const result = response.data.results[0];
-            return { latitude: result.lat, longitude: result.lon, timezone: result.timezone.name };
-        }
-        return null;
-    } catch (error) {
-        console.error("Erro ao geocodificar localização:", error.message);
-        throw new Error("Erro ao comunicar com o serviço de geocodificação.");
+    const response = await axios.get(url);
+    if (response.data.results?.length > 0) {
+        const result = response.data.results[0];
+        return { latitude: result.lat, longitude: result.lon, timezone: result.timezone.name };
     }
+    return null;
 }
 
 async function buscarCidade(textoDigitado) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY;
-    if (!CHAVE_API) { throw new Error("Configuração do servidor incompleta."); }
+    if (!CHAVE_API) throw new Error("Configuração do servidor incompleta.");
     const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(textoDigitado)}&lang=pt&limit=5&type=city&format=json&apiKey=${CHAVE_API}`;
-    try {
-        const response = await axios.get(url);
-        const resultadosLimpos = response.data.results ? response.data.results.map(r => ({
-            nome_formatado: r.formatted, latitude: r.lat, longitude: r.lon, fuso_horario: r.timezone.name
-        })) : [];
-        return resultadosLimpos;
-    } catch (error) { throw new Error("Erro ao comunicar com o serviço de geolocalização."); }
+    const response = await axios.get(url);
+    return response.data.results
+        ? response.data.results.map(r => ({
+            nome_formatado: r.formatted,
+            latitude: r.lat,
+            longitude: r.lon,
+            fuso_horario: r.timezone.name
+        }))
+        : [];
 }
 
+// ---------------- ROTAS ----------------
 app.get('/api/cidades', async (req, res) => {
     const { busca } = req.query;
     if (!busca || busca.trim().length < 2) {
@@ -72,33 +71,35 @@ app.get('/api/cidades', async (req, res) => {
 app.post('/calculate', async (req, res) => {
     try {
         const { year, month, day, hour, locationString, latitude, longitude, utcOffset } = req.body;
-        if (year == null || month == null || day == null || hour == null || (!locationString && (latitude == null || longitude == null))) {
+        if (!year || !month || !day || hour == null || (!locationString && (latitude == null || longitude == null))) {
             return res.status(400).json({ error: 'Dados de entrada incompletos.' });
         }
 
+        // --- Coordenadas e fuso ---
         let lat, lon, timezone;
-        if (latitude !== undefined && longitude !== undefined) {
+        if (latitude != null && longitude != null) {
             lat = parseFloat(latitude);
             lon = parseFloat(longitude);
         } else {
             const geoResult = await geocodeLocation(locationString);
-            if (!geoResult) { return res.status(400).json({ error: `Coordenadas não encontradas para "${locationString}".` }); }
+            if (!geoResult) return res.status(400).json({ error: `Coordenadas não encontradas para "${locationString}".` });
             lat = geoResult.latitude;
             lon = geoResult.longitude;
             timezone = geoResult.timezone;
         }
 
+        // --- Hora local -> UTC ---
         const hourFloat = parseFloat(hour);
         const hours = Math.floor(hourFloat);
         const minutes = Math.round((hourFloat - hours) * 60);
 
         let birthTimeUtc;
-        if (utcOffset !== undefined && utcOffset !== null) {
+        if (utcOffset != null) {
             const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
             const offsetInMinutes = utcOffset * 60;
             birthTimeUtc = moment(dateString).utcOffset(offsetInMinutes, true).utc();
         } else {
-            if (!timezone) { timezone = moment.tz.guess(lat, lon); }
+            if (!timezone) timezone = moment.tz.guess(lat, lon);
             const birthTimeLocal = moment.tz({ year, month: month - 1, day, hour: hours, minute: minutes }, timezone);
             birthTimeUtc = birthTimeLocal.clone().utc();
         }
@@ -108,9 +109,11 @@ app.post('/calculate', async (req, res) => {
         const utcDay = birthTimeUtc.date();
         const utcHour = birthTimeUtc.hour() + (birthTimeUtc.minute() / 60) + (birthTimeUtc.second() / 3600);
 
+        // --- JD ---
         const jd_ut_obj = await sweph.utc_to_jd(utcYear, utcMonth, utcDay, utcHour, 0, 0, 1);
         const julianDay = jd_ut_obj.data[0];
 
+        // --- Planetas ---
         const planetsToCalc = [
             { id: SE_SUN, name: 'sun' }, { id: SE_MOON, name: 'moon' },
             { id: SE_MERCURY, name: 'mercury' }, { id: SE_VENUS, name: 'venus' },
@@ -123,17 +126,21 @@ app.post('/calculate', async (req, res) => {
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
             const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
-            calculatedPlanets[planet.name] = { longitude: position.data[0], latitude: position.data[1], speed: position.data[3] };
+            calculatedPlanets[planet.name] = {
+                longitude: position.data[0],
+                latitude: position.data[1],
+                speed: position.data[3]
+            };
         }
 
+        // --- Aspectos ---
         const aspectsConfig = {
             conjunction: { angle: 0, orb: 10 }, opposition: { angle: 180, orb: 10 },
             trine: { angle: 120, orb: 10 }, square: { angle: 90, orb: 10 },
-            sextile: { angle: 60, orb: 6 },
-            quincunx: { angle: 150, orb: 3 }
+            sextile: { angle: 60, orb: 6 }, quincunx: { angle: 150, orb: 3 }
         };
 
-        const planetPoints = Object.keys(calculatedPlanets).map(name => ({ name: name, longitude: calculatedPlanets[name].longitude }));
+        const planetPoints = Object.keys(calculatedPlanets).map(name => ({ name, longitude: calculatedPlanets[name].longitude }));
         const foundAspects = [];
         for (let i = 0; i < planetPoints.length; i++) {
             for (let j = i + 1; j < planetPoints.length; j++) {
@@ -144,12 +151,18 @@ app.post('/calculate', async (req, res) => {
                     const aspect = aspectsConfig[aspectName];
                     const orb = Math.abs(dist - aspect.angle);
                     if (orb <= aspect.orb) {
-                        foundAspects.push({ point1: p1.name, point2: p2.name, aspect_type: aspectName, orb_degrees: parseFloat(orb.toFixed(2)) });
+                        foundAspects.push({
+                            point1: p1.name,
+                            point2: p2.name,
+                            aspect_type: aspectName,
+                            orb_degrees: parseFloat(orb.toFixed(2))
+                        });
                     }
                 }
             }
         }
 
+        // --- Extras ---
         const aspectPatterns = findAspectPatterns(foundAspects);
         const moonPhase = getMoonPhase(calculatedPlanets.sun.longitude, calculatedPlanets.moon.longitude);
         const sunSignInfo = getZodiacSign(calculatedPlanets.sun.longitude);
@@ -162,28 +175,29 @@ app.post('/calculate', async (req, res) => {
             planet.sign = signName;
             planet.degree_type = getDegreeType(signName, decimalDegrees);
             planet.dwadasamsaSign = getDwadasamsaSign(signName, decimalDegrees);
-            
+
             if (classicalPlanets.includes(planetName)) {
                 planet.dignities = getDignities(planetName, signName, decimalDegrees, isDiurnal);
             }
         }
 
-        // 🔥 Chamando cálculo de cúspides
+        // --- ✅ Cálculo das cúspides (corrigido) ---
         const cuspsResult = calculateCusps({
             sideralTime: { h: birthTimeUtc.hour(), m: birthTimeUtc.minute(), s: birthTimeUtc.second() },
             latitude: { deg: Math.abs(Math.trunc(lat)), min: Math.abs((lat % 1) * 60), sec: 0, dir: lat >= 0 ? 'N' : 'S' },
             longitude: { deg: Math.abs(Math.trunc(lon)), min: Math.abs((lon % 1) * 60), sec: 0, dir: lon >= 0 ? 'E' : 'W' },
-            obliquity: 23.4365, // valor médio; pode ser refinado
-            houseSystem: 'P'   // Placidus (ajuste conforme desejar)
+            obliquity: 23.4365,
+            houseSystem: 'P'
         });
 
+        // --- Resposta final ---
         const responseData = {
             message: "Cálculo completo do mapa astral realizado com sucesso!",
             moon_phase: moonPhase,
             planets: calculatedPlanets,
             aspects: foundAspects,
             aspect_patterns: aspectPatterns,
-            cusps: cuspsResult // 🔥 resultado das casas adicionado
+            cusps: cuspsResult
         };
 
         res.status(200).json(responseData);
