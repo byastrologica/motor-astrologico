@@ -1,4 +1,4 @@
-// technicalReportGenerator.js (Versão Final com Layout Unificado)
+// technicalReportGenerator.js (Versão Final com Layout Corrigido)
 
 function decimalToDMS(decimal) {
     if (decimal === undefined || decimal === null) return '';
@@ -67,9 +67,6 @@ function generateTechnicalReport(data) {
         const p = planets[planetName];
         if (!p) return;
 
-        if (index > 0) {
-            report += "----------------------------------------\n\n";
-        }
         report += "--- Posição e Condições Planetárias ---\n\n";
 
         const planetTitle = PLANET_NAMES_MAP[planetName] || capitalize(planetName);
@@ -97,12 +94,14 @@ function generateTechnicalReport(data) {
         
         if (planetAspects.length > 0) {
             report += "--- Aspetos Ptolomaicos ---\n\n";
+            
             const aspectsByType = { conjunction: [], opposition: [], square: [], trine: [], sextile: [] };
             planetAspects.forEach(aspect => {
                 if (aspectsByType[aspect.aspect_type]) {
                     aspectsByType[aspect.aspect_type].push(aspect);
                 }
             });
+
             Object.keys(aspectsByType).forEach(type => {
                 if (aspectsByType[type].length > 0) {
                     report += `${capitalize(ASPECT_NAMES_MAP[type])}\n`;
@@ -115,10 +114,14 @@ function generateTechnicalReport(data) {
                 }
             });
         }
+        
+        // Adiciona um separador visual apenas se não for o último planeta
+        if (index < planetOrder.length - 1) {
+             report += "\n";
+        }
     });
 
     if (aspect_patterns && aspect_patterns.length > 0) {
-        report += "----------------------------------------\n\n";
         report += "--- Configurações de Aspetos Principais ---\n\n";
         aspect_patterns.forEach((pattern, index) => {
              const planetDetails = pattern.planets.map(pName => {
