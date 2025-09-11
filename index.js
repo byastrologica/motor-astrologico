@@ -1,4 +1,4 @@
-// index.js (Versão Final com Ordem Corrigida)
+// index.js
 
 require('dotenv').config();
 const express = require('express');
@@ -20,6 +20,7 @@ const { getMoonPhase } = require('./moonPhaseCalculator');
 const { generateTechnicalReport } = require('./technicalReportGenerator');
 const { calculateAspects } = require('./aspectCalculator');
 const { calculateBalances } = require('./balanceCalculator');
+const { generateFreeReport } = require('./interpretationEngine');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -129,43 +130,49 @@ app.post('/calculate', async (req, res) => {
             speed: calculatedPlanets.north_node.speed
         };
         
-        // --- ORDEM CORRIGIDA ---
+        const foundAspects = calculateAspects(calculatedPlanets);
 
-        // 1. PRIMEIRO, ENRIQUECE OS PLANETAS COM TODOS OS DADOS BÁSICOS
-        const sunSignInfo = getZodiacSign(calculatedPlanets.sun.longitude);
+        const enrichedData = {
+            moon_phase: getMoonPhase(calculatedPlanets.sun.longitude, calculatedPlanets.moon.longitude),
+            planets: calculatedPlanets,
+            aspects: foundAspects,
+            aspect_patterns: findAspectPatterns(foundAspects),
+            balances: calculateBalances(calculatedPlanets)
+        };
+        
+        const sunSignInfo = getZodiacSign(enrichedData.planets.sun.longitude);
         const isDiurnal = ZODIAC_SIGNS.indexOf(sunSignInfo.name) < 6;
         const classicalPlanets = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'north_node', 'south_node'];
 
-        for (const planetName in calculatedPlanets) {
-            const planet = calculatedPlanets[planetName];
+        for (const planetName in enrichedData.planets) {
+            const planet = enrichedData.planets[planetName];
             const { name: signName, decimalDegrees } = getZodiacSign(planet.longitude);
-            planet.sign = signName; // O CAMPO 'SIGN' É ADICIONADO AQUI
+            planet.sign = signName;
             planet.degree_type = getDegreeType(signName, decimalDegrees);
             planet.dwadasamsaSign = getDwadasamsaSign(signName, decimalDegrees);
             if (classicalPlanets.includes(planetName)) {
                 planet.dignities = getDignities(planetName, signName, decimalDegrees, isDiurnal);
             }
         }
-
-        // 2. AGORA, COM OS PLANETAS JÁ ENRIQUECIDOS, CALCULA O RESTO
-        const foundAspects = calculateAspects(calculatedPlanets);
         
-        const enrichedData = {
-            moon_phase: getMoonPhase(calculatedPlanets.sun.longitude, calculatedPlanets.moon.longitude),
-            planets: calculatedPlanets,
-            aspects: foundAspects,
-            aspect_patterns: findAspectPatterns(foundAspects),
-            balances: calculateBalances(calculatedPlanets) // AGORA ESTA FUNÇÃO RECEBE OS SIGNOS
-        };
+        // --- NOVO FLUXO DE INTERPRETAÇÃO ---
         
+        // 1. Gera o relatório técnico (para possível uso futuro ou depuração)
         const technicalReport = generateTechnicalReport(enrichedData);
 
-        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-        res.status(200).send(technicalReport);
+        // 2. Gera a interpretação final usando o novo motor
+        const finalInterpretation = await generateFreeReport(enrichedData);
+
+        // 3. Envia a resposta final para o utilizador
+        res.status(200).json({
+            message: "Análise astrológica gerada com sucesso!",
+            interpretation: finalInterpretation,
+            technical_report: technicalReport // Mantemos o relatório técnico na resposta
+        });
 
     } catch (error) {
-        console.error("Erro no cálculo:", error);
-        res.status(500).json({ error: 'Erro interno ao realizar o cálculo.', details: error.toString() });
+        console.error("Erro no cálculo ou interpretação:", error.response ? error.response.data : error.message);
+        res.status(500).json({ error: 'Erro interno ao gerar a análise.', details: error.toString() });
     }
 });
 
