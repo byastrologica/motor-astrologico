@@ -1,4 +1,4 @@
-// technicalReportGenerator.js
+// technicalReportGenerator.js (Versão Final com Layout Ajustado)
 
 function decimalToDMS(decimal) {
     if (decimal === undefined || decimal === null) return '';
@@ -47,14 +47,20 @@ function generateTechnicalReport(data) {
     };
     const ASPECT_NAMES_MAP = {
         conjunction: 'Conjunção', opposition: 'Oposição', square: 'Quadratura',
-        trine: 'Trígono', sextile: 'Sextil', quincunx: 'Quincunce'
+        trine: 'Trígono', sextile: 'Sextil', quincunce: 'Quincunce'
     };
 
-    report += "--- Posição e Condições Planetárias ---\n\n";
-
-    planetOrder.forEach(planetName => {
+    planetOrder.forEach((planetName, index) => {
         const p = planets[planetName];
         if (!p) return;
+
+        // --- AJUSTE DE LAYOUT ADICIONADO AQUI ---
+        // Adiciona um separador antes de cada planeta, exceto o primeiro (o Sol)
+        if (index > 0) {
+            report += "----------------------------------------\n\n";
+        }
+
+        report += "--- Posição e Condições Planetárias ---\n\n";
 
         const planetTitle = PLANET_NAMES_MAP[planetName] || capitalize(planetName);
         const degree = Math.floor(p.longitude % 30);
@@ -101,11 +107,10 @@ function generateTechnicalReport(data) {
                 }
             });
         }
-        report += "\n";
     });
 
-
     if (aspect_patterns && aspect_patterns.length > 0) {
+        report += "----------------------------------------\n\n";
         report += "--- Configurações de Aspetos Principais ---\n\n";
         aspect_patterns.forEach((pattern, index) => {
              const planetDetails = pattern.planets.map(pName => {
