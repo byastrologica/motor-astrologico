@@ -1,4 +1,4 @@
-// dignityCalculator.js (Versão Final e Corrigida)
+// dignityCalculator.js (Versão Final e Completa)
 
 const { ZODIAC_SIGNS } = require('./constants');
 
@@ -61,8 +61,6 @@ function getDignities(planetName, signName, degrees, isDiurnal) {
     const planetDignities = DIGNITIES[planetName];
     if (!planetDignities) return {};
     const signNormalized = normalizeSignName(signName);
-    
-    // 1. Checa Domicílio e Exílio
     const domicileSigns = Array.isArray(planetDignities.domicile) ? planetDignities.domicile : [planetDignities.domicile];
     if (domicileSigns.includes(signNormalized)) {
         result.domicile = true;
@@ -73,8 +71,6 @@ function getDignities(planetName, signName, degrees, isDiurnal) {
             result.detriment = true;
         }
     }
-
-    // 2. Checa Exaltação e Queda
     if (planetDignities.exaltation === signNormalized) {
         result.exaltation = true;
     } else {
@@ -84,8 +80,6 @@ function getDignities(planetName, signName, degrees, isDiurnal) {
             result.fall = true;
         }
     }
-
-    // 3. Checa Triplicidade
     for (const element in TRIPLICITY_RULERS) {
         const triplicityInfo = TRIPLICITY_RULERS[element];
         if (triplicityInfo.signs.includes(signNormalized)) {
@@ -96,8 +90,6 @@ function getDignities(planetName, signName, degrees, isDiurnal) {
             break;
         }
     }
-
-    // 4. Checa Termo
     const signTerms = TERMS[signNormalized];
     if (signTerms) {
         for (const term of signTerms) {
@@ -107,8 +99,6 @@ function getDignities(planetName, signName, degrees, isDiurnal) {
             }
         }
     }
-    
-    // 5. Checa Face e Decanato
     const signFaces = FACES[signNormalized];
     if (signFaces) {
         for (let i = 0; i < signFaces.length; i++) {
@@ -120,7 +110,6 @@ function getDignities(planetName, signName, degrees, isDiurnal) {
             }
         }
     }
-
     const cleanedResult = {};
     for (const key in result) {
         if (result[key] !== false && result[key] !== null) {
