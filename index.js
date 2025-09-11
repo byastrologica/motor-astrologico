@@ -1,4 +1,4 @@
-// index.js
+// index.js (Versão Estável Restaurada)
 
 require('dotenv').config();
 const express = require('express');
@@ -17,7 +17,6 @@ const { getDignities } = require('./dignityCalculator');
 const { findAspectPatterns } = require('./aspectPatternFinder');
 const { getDegreeType } = require('./degreeClassifier');
 const { getMoonPhase } = require('./moonPhaseCalculator');
-const { calculateHousesAndPlacements } = require('./housesCalculator');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -119,15 +118,13 @@ app.post('/calculate', async (req, res) => {
             calculatedPlanets[planet.name] = { longitude: position.data[0], latitude: position.data[1], speed: position.data[3] };
         }
         
-        const { housesData, planetsWithHouses } = await calculateHousesAndPlacements(julianDay, lat, lon, calculatedPlanets);
-        
         const aspectsConfig = {
             conjunction: { angle: 0, orb: 10 }, opposition: { angle: 180, orb: 10 },
             trine: { angle: 120, orb: 10 }, square: { angle: 90, orb: 10 },
             sextile: { angle: 60, orb: 6 },
             quincunx: { angle: 150, orb: 3 }
         };
-        const planetPoints = Object.keys(planetsWithHouses).map(name => ({ name: name, longitude: planetsWithHouses[name].longitude }));
+        const planetPoints = Object.keys(calculatedPlanets).map(name => ({ name: name, longitude: calculatedPlanets[name].longitude }));
         const foundAspects = [];
         for (let i = 0; i < planetPoints.length; i++) {
             for (let j = i + 1; j < planetPoints.length; j++) {
@@ -145,13 +142,13 @@ app.post('/calculate', async (req, res) => {
         }
 
         const aspectPatterns = findAspectPatterns(foundAspects);
-        const moonPhase = getMoonPhase(planetsWithHouses.sun.longitude, planetsWithHouses.moon.longitude);
-        const sunSignInfo = getZodiacSign(planetsWithHouses.sun.longitude);
+        const moonPhase = getMoonPhase(calculatedPlanets.sun.longitude, calculatedPlanets.moon.longitude);
+        const sunSignInfo = getZodiacSign(calculatedPlanets.sun.longitude);
         const isDiurnal = ZODIAC_SIGNS.indexOf(sunSignInfo.name) < 6;
         const classicalPlanets = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'north_node'];
 
-        for (const planetName in planetsWithHouses) {
-            const planet = planetsWithHouses[planetName];
+        for (const planetName in calculatedPlanets) {
+            const planet = calculatedPlanets[planetName];
             const { name: signName, decimalDegrees } = getZodiacSign(planet.longitude);
             planet.sign = signName;
             planet.degree_type = getDegreeType(signName, decimalDegrees);
@@ -165,8 +162,7 @@ app.post('/calculate', async (req, res) => {
         const responseData = {
             message: "Cálculo completo do mapa astral realizado com sucesso!",
             moon_phase: moonPhase,
-            houses: housesData,
-            planets: planetsWithHouses,
+            planets: calculatedPlanets,
             aspects: foundAspects,
             aspect_patterns: aspectPatterns
         };
