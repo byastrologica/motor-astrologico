@@ -1,4 +1,4 @@
-// technicalReportGenerator.js (Versão Final com Tradução Corrigida)
+// technicalReportGenerator.js
 
 function decimalToDMS(decimal) {
     if (decimal === undefined || decimal === null) return '';
@@ -13,8 +13,8 @@ function capitalize(str) {
     return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-function getConditionString(dignities) {
-    if (!dignities) return "Sem dignidades clássicas";
+function formatCondition(dignities) {
+    if (!dignities) return "Condição: Sem dignidades clássicas";
     const majorDignities = [];
     if (dignities.domicile) majorDignities.push("Domicílio");
     if (dignities.exaltation) majorDignities.push("Exaltação");
@@ -22,9 +22,26 @@ function getConditionString(dignities) {
     if (dignities.fall) majorDignities.push("Queda");
     if (dignities.triplicity) majorDignities.push("Triplicidade");
     if (majorDignities.length > 0) {
-        return majorDignities.join(' e ');
+        return `Condição: ${majorDignities.join(' e ')}`;
     }
-    return "Peregrino";
+    return "Condição: Peregrino";
+}
+
+function formatDetails(planet) {
+    const details = [];
+    const degree = Math.floor(planet.longitude % 30);
+    const sabianDegree = degree + 1;
+    details.push(planet.degree_type === 'Normal' ? 'Grau Normal' : `Grau ${planet.degree_type}`);
+    details.push(`Símbolo Sabiano: Grau ${sabianDegree}`);
+    if (planet.dignities) {
+        if(planet.dignities.term) details.push(`Termo de ${capitalize(planet.dignities.term)}`);
+        if(planet.dignities.face) details.push(`${planet.dignities.decan}º Decanato (Face de ${capitalize(planet.dignities.face)})`);
+    }
+    if (planet.dwadasamsaSign) {
+        details.push(`Dwadasamsa em ${planet.dwadasamsaSign}`);
+    }
+    details.push(`Movimento ${planet.speed < 0 ? 'retrógrado' : 'direto'}`);
+    return `Detalhes: ${details.join('. ')}.`;
 }
 
 function findAspectBetween(p1, p2, aspects) {
@@ -37,7 +54,7 @@ function generateTechnicalReport(data) {
     const { moon_phase, planets, aspects, aspect_patterns } = data;
 
     let report = "Resumo Astrológico do Mapa\n\n";
-    report += `Fase Lunar de Nascimento: ${moon_phase}\n\n";
+    report += `Fase Lunar de Nascimento: ${moon_phase}\n\n`;
     
     const planetOrder = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto', 'north_node', 'south_node'];
     const PLANET_NAMES_MAP = {
@@ -57,9 +74,7 @@ function generateTechnicalReport(data) {
         if (!p) return;
 
         const planetTitle = PLANET_NAMES_MAP[planetName] || capitalize(planetName);
-        const degree = Math.floor(p.longitude % 30);
-        const sabianDegree = degree + 1;
-
+        
         report += `${planetTitle}: ${decimalToDMS(p.longitude % 30)} de ${p.sign}\n\n`;
         report += `Movimento: ${p.speed < 0 ? 'Retrógrado' : 'Direto'}\n`;
         report += `Condição: ${getConditionString(p.dignities)}\n`;
@@ -71,6 +86,8 @@ function generateTechnicalReport(data) {
             report += `Dwadasamsa: ${p.dwadasamsaSign}\n`;
         }
         report += `Tipo de Grau: ${p.degree_type}\n`;
+        const degree = Math.floor(p.longitude % 30);
+        const sabianDegree = degree + 1;
         report += `Símbolo Sabiano: Grau ${sabianDegree}\n`;
         if (p.dignities && p.dignities.term) {
             report += `Termo: ${PLANET_NAMES_MAP[p.dignities.term]}\n`;
@@ -107,15 +124,12 @@ function generateTechnicalReport(data) {
 
     if (aspect_patterns && aspect_patterns.length > 0) {
         report += "--- Configurações de Aspetos Principais ---\n\n";
-        
         aspect_patterns.forEach((pattern, index) => {
              const planetDetails = pattern.planets.map(pName => {
                 const planetObj = planets[pName];
                 return `${PLANET_NAMES_MAP[pName] || capitalize(pName)} (${decimalToDMS(planetObj.longitude % 30)} ${planetObj.sign})`;
             }).join(' - ');
             report += `${pattern.name} ${index + 1}: ${planetDetails}\n`;
-            
-            // --- LÓGICA DE FORMATAÇÃO CORRIGIDA COM TRADUÇÃO ---
             if (pattern.name === 'Grande Cruz') {
                 const [p1, p2, p3, p4] = pattern.planets;
                 const opp1 = findAspectBetween(p1, p3, aspects) || findAspectBetween(p1, p4, aspects) || findAspectBetween(p1, p2, aspects);
