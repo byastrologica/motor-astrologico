@@ -52,18 +52,15 @@ function findAspectBetween(p1, p2, aspects) {
 
 function generateTechnicalReport(data) {
     const { moon_phase, planets, aspects, aspect_patterns } = data;
-
     let report = "Resumo Astrológico do Mapa\n\n";
     report += `Fase Lunar de Nascimento: ${moon_phase}\n\n`;
     report += "--- Posições e Condições Planetárias ---\n\n";
-
     const planetOrder = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto', 'north_node', 'south_node'];
     const PLANET_NAMES_MAP = {
         sun: 'Sol', moon: 'Lua', mercury: 'Mercúrio', venus: 'Vênus', mars: 'Marte',
         jupiter: 'Júpiter', saturn: 'Saturno', uranus: 'Urano', neptune: 'Netuno',
         pluto: 'Plutão', north_node: 'Nodo Norte', south_node: 'Nodo Sul'
     };
-
     planetOrder.forEach(planetName => {
         const p = planets[planetName];
         if (!p) return;
@@ -81,7 +78,7 @@ function generateTechnicalReport(data) {
         };
         const processedAspects = new Set();
         planetOrder.forEach(planetName => {
-            if (!planets[planetName] || planetName === 'south_node') return; // Ignora o Nodo Sul aqui para evitar duplicados
+            if (!planets[planetName] || planetName === 'south_node') return;
             const planetAspects = aspects.filter(asp => asp.point1 === planetName || asp.point2 === planetName);
             if (planetAspects.length > 0) {
                 const planetTitle = PLANET_NAMES_MAP[planetName] || capitalize(planetName);
@@ -95,7 +92,8 @@ function generateTechnicalReport(data) {
                     }
                     const otherPlanetTitle = PLANET_NAMES_MAP[otherPlanetName] || capitalize(otherPlanetName);
                     const aspectTitle = aspectNamesMap[aspect.aspect_type] || capitalize(aspect.aspect_type);
-                    aspectText += `   - ${otherPlanetTitle} (${aspectTitle}, Orbe: ${aspect.orb_degrees}°)\n`;
+                    const status_pt = aspect.status === 'Applying' ? 'Aplicativo' : 'Separativo';
+                    aspectText += `   - ${otherPlanetTitle} (${aspectTitle}, Orbe: ${aspect.orb_degrees}°, ${status_pt})\n`;
                     processedAspects.add(aspectIdentifier);
                     hasListedAspects = true;
                 });
@@ -115,21 +113,23 @@ function generateTechnicalReport(data) {
             }).join(' - ');
             report += `${pattern.name} ${index + 1}: ${planetDetails}\n`;
             if (pattern.name === 'Grande Cruz') {
-                const [p1, p2, p3, p4] = pattern.planets;
+                const [p1, p2, p3, p4] = pattern.planets.sort();
                 const opp1 = findAspectBetween(p1, p3, aspects) || findAspectBetween(p1, p4, aspects) || findAspectBetween(p1, p2, aspects);
-                const p1_partner = opp1.point1 === p1 ? opp1.point2 : opp1.point1;
-                const remaining_planets = [p2,p3,p4].filter(p => p !== p1_partner);
-                const opp2 = findAspectBetween(remaining_planets[0], remaining_planets[1], aspects);
-                const sq1 = findAspectBetween(p1, p2, aspects);
-                const sq2 = findAspectBetween(p1, p4, aspects);
-                const sq3 = findAspectBetween(p3, p2, aspects);
-                const sq4 = findAspectBetween(p3, p4, aspects);
-                if(opp1) report += `   Oposição: ${capitalize(opp1.point1)} - ${capitalize(opp1.point2)} (Orbe: ${opp1.orb_degrees}°)\n`;
-                if(opp2) report += `   Oposição: ${capitalize(opp2.point1)} - ${capitalize(opp2.point2)} (Orbe: ${opp2.orb_degrees}°)\n`;
-                if(sq1 && sq1.aspect_type === 'square') report += `   Quadratura: ${capitalize(sq1.point1)} - ${capitalize(sq1.point2)} (Orbe: ${sq1.orb_degrees}°)\n`;
-                if(sq2 && sq2.aspect_type === 'square') report += `   Quadratura: ${capitalize(sq2.point1)} - ${capitalize(sq2.point2)} (Orbe: ${sq2.orb_degrees}°)\n`;
-                if(sq3 && sq3.aspect_type === 'square') report += `   Quadratura: ${capitalize(sq3.point1)} - ${capitalize(sq3.point2)} (Orbe: ${sq3.orb_degrees}°)\n`;
-                if(sq4 && sq4.aspect_type === 'square') report += `   Quadratura: ${capitalize(sq4.point1)} - ${capitalize(sq4.point2)} (Orbe: ${sq4.orb_degrees}°)\n`;
+                if (opp1) {
+                    const p1_partner = opp1.point1 === p1 ? opp1.point2 : opp1.point1;
+                    const remaining_planets = [p2,p3,p4].filter(p => p !== p1 && p !== p1_partner);
+                    const opp2 = findAspectBetween(remaining_planets[0], remaining_planets[1], aspects);
+                    const sq1 = findAspectBetween(p1, remaining_planets[0], aspects);
+                    const sq2 = findAspectBetween(p1, remaining_planets[1], aspects);
+                    const sq3 = findAspectBetween(p1_partner, remaining_planets[0], aspects);
+                    const sq4 = findAspectBetween(p1_partner, remaining_planets[1], aspects);
+                    if(opp1) report += `   Oposição: ${capitalize(opp1.point1)} - ${capitalize(opp1.point2)} (Orbe: ${opp1.orb_degrees}°)\n`;
+                    if(opp2) report += `   Oposição: ${capitalize(opp2.point1)} - ${capitalize(opp2.point2)} (Orbe: ${opp2.orb_degrees}°)\n`;
+                    if(sq1 && sq1.aspect_type === 'square') report += `   Quadratura: ${capitalize(sq1.point1)} - ${capitalize(sq1.point2)} (Orbe: ${sq1.orb_degrees}°)\n`;
+                    if(sq2 && sq2.aspect_type === 'square') report += `   Quadratura: ${capitalize(sq2.point1)} - ${capitalize(sq2.point2)} (Orbe: ${sq2.orb_degrees}°)\n`;
+                    if(sq3 && sq3.aspect_type === 'square') report += `   Quadratura: ${capitalize(sq3.point1)} - ${capitalize(sq3.point2)} (Orbe: ${sq3.orb_degrees}°)\n`;
+                    if(sq4 && sq4.aspect_type === 'square') report += `   Quadratura: ${capitalize(sq4.point1)} - ${capitalize(sq4.point2)} (Orbe: ${sq4.orb_degrees}°)\n`;
+                }
             } else if (pattern.name === 'T-Square' && pattern.apex) {
                 const oppositionPlanets = pattern.planets.filter(p => p !== pattern.apex);
                 const opposition = findAspectBetween(oppositionPlanets[0], oppositionPlanets[1], aspects);
