@@ -1,4 +1,4 @@
-// index.js (Versão Estável Restaurada)
+// index.js
 
 require('dotenv').config();
 const express = require('express');
@@ -17,6 +17,8 @@ const { getDignities } = require('./dignityCalculator');
 const { findAspectPatterns } = require('./aspectPatternFinder');
 const { getDegreeType } = require('./degreeClassifier');
 const { getMoonPhase } = require('./moonPhaseCalculator');
+const { generateFreeReportPrompt } = require('./reportBuilder');
+const { generateTechnicalReport } = require('./technicalReportGenerator');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -141,37 +143,58 @@ app.post('/calculate', async (req, res) => {
             }
         }
 
-        const aspectPatterns = findAspectPatterns(foundAspects);
-        const moonPhase = getMoonPhase(calculatedPlanets.sun.longitude, calculatedPlanets.moon.longitude);
-        const sunSignInfo = getZodiacSign(calculatedPlanets.sun.longitude);
+        const enrichedData = {
+            moon_phase: getMoonPhase(calculatedPlanets.sun.longitude, calculatedPlanets.moon.longitude),
+            planets: calculatedPlanets,
+            aspects: foundAspects,
+            aspect_patterns: findAspectPatterns(foundAspects)
+        };
+        
+        const sunSignInfo = getZodiacSign(enrichedData.planets.sun.longitude);
         const isDiurnal = ZODIAC_SIGNS.indexOf(sunSignInfo.name) < 6;
         const classicalPlanets = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'north_node'];
 
-        for (const planetName in calculatedPlanets) {
-            const planet = calculatedPlanets[planetName];
+        for (const planetName in enrichedData.planets) {
+            const planet = enrichedData.planets[planetName];
             const { name: signName, decimalDegrees } = getZodiacSign(planet.longitude);
             planet.sign = signName;
             planet.degree_type = getDegreeType(signName, decimalDegrees);
             planet.dwadasamsaSign = getDwadasamsaSign(signName, decimalDegrees);
-            
             if (classicalPlanets.includes(planetName)) {
                 planet.dignities = getDignities(planetName, signName, decimalDegrees, isDiurnal);
             }
         }
+        
+        const prompt = generateFreeReportPrompt(enrichedData);
+        const technicalReport = generateTechnicalReport(enrichedData);
 
-        const responseData = {
-            message: "Cálculo completo do mapa astral realizado com sucesso!",
-            moon_phase: moonPhase,
-            planets: calculatedPlanets,
-            aspects: foundAspects,
-            aspect_patterns: aspectPatterns
-        };
+        const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+        if (!GEMINI_API_KEY) { throw new Error("Chave de API do Gemini não configurada."); }
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+        const payload = { contents: [{ parts: [{ text: prompt }] }] };
 
-        res.status(200).json(responseData);
+        const geminiResponse = await axios.post(apiUrl, payload);
+
+        if (geminiResponse.data.candidates && geminiResponse.data.candidates[0].content.parts[0].text) {
+            const finalInterpretation = geminiResponse.data.candidates[0].content.parts[0].text;
+            
+            res.status(200).json({
+                message: "Análise astrológica gerada com sucesso!",
+                interpretation: finalInterpretation,
+                technical_report: technicalReport
+            });
+        } else {
+            // Se o Gemini não retornar um texto, retorne pelo menos o relatório técnico
+            res.status(200).json({
+                message: "Cálculo técnico concluído, mas a interpretação não pôde ser gerada.",
+                technical_report: technicalReport,
+                raw_data: enrichedData
+            });
+        }
 
     } catch (error) {
-        console.error("Erro no cálculo:", error);
-        res.status(500).json({ error: 'Erro interno ao realizar o cálculo.', details: error.toString() });
+        console.error("Erro no processo de cálculo ou interpretação:", error.response ? error.response.data : error.message);
+        res.status(500).json({ error: 'Erro interno ao gerar a análise.', details: error.toString() });
     }
 });
 
