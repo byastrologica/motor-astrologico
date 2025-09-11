@@ -1,4 +1,4 @@
-// index.js
+// index.js (Versão Final - Apenas Relatório Técnico)
 
 require('dotenv').config();
 const express = require('express');
@@ -18,7 +18,8 @@ const { findAspectPatterns } = require('./aspectPatternFinder');
 const { getDegreeType } = require('./degreeClassifier');
 const { getMoonPhase } = require('./moonPhaseCalculator');
 const { generateTechnicalReport } = require('./technicalReportGenerator');
-const { generateFreeReportPrompt } = require('./reportBuilder');
+// O reportBuilder não é mais necessário, podemos remover a linha abaixo se quiser
+// const { generateFreeReportPrompt } = require('./reportBuilder');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -70,9 +71,8 @@ app.get('/api/cidades', async (req, res) => {
 });
 
 app.post('/calculate', async (req, res) => {
-    let prompt;
-
     try {
+        // ... (Toda a lógica de cálculo dos dados brutos permanece a mesma) ...
         const { year, month, day, hour, locationString, latitude, longitude, utcOffset } = req.body;
         if (year == null || month == null || day == null || hour == null || (!locationString && (latitude == null || longitude == null))) {
             return res.status(400).json({ error: 'Dados de entrada incompletos.' });
@@ -167,40 +167,28 @@ app.post('/calculate', async (req, res) => {
             }
         }
         
+        // 1. Gera o Relatório Técnico formatado
         const technicalReport = generateTechnicalReport(enrichedData);
 
-        prompt = generateFreeReportPrompt(enrichedData);
-
+        // 2. Comenta ou remove a chamada ao Gemini
+        /*
+        const prompt = generateFreeReportPrompt(enrichedData);
         const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
         if (!GEMINI_API_KEY) { throw new Error("Chave de API do Gemini não configurada."); }
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
         const payload = { contents: [{ parts: [{ text: prompt.trim() }] }] };
-
         const geminiResponse = await axios.post(apiUrl, payload);
+        */
 
-        if (geminiResponse.data.candidates && geminiResponse.data.candidates[0].content.parts[0].text) {
-            const finalInterpretation = geminiResponse.data.candidates[0].content.parts[0].text;
-            
-            res.status(200).json({
-                message: "Análise astrológica gerada com sucesso!",
-                interpretation: finalInterpretation,
-                technical_report: technicalReport
-            });
-        } else {
-            res.status(502).json({
-                error: 'Resposta inválida da API de interpretação.',
-                technical_report: technicalReport,
-                prompt_sent: prompt
-            });
-        }
+        // 3. Retorna diretamente o relatório técnico
+        // Usamos res.send() e definimos o Content-Type para texto simples
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.status(200).send(technicalReport);
+
 
     } catch (error) {
-        console.error("Erro no processo de cálculo ou interpretação:", error.response ? error.response.data : error.message);
-        res.status(500).json({
-            error: 'Erro interno ao gerar a análise.',
-            details: error.toString(),
-            prompt_sent: prompt || "O prompt não foi gerado antes do erro ocorrer."
-        });
+        console.error("Erro no cálculo:", error);
+        res.status(500).json({ error: 'Erro interno ao realizar o cálculo.', details: error.toString() });
     }
 });
 
