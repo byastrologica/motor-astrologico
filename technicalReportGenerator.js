@@ -1,64 +1,45 @@
-// technicalReportGenerator.js
+// technicalReportGenerator.js (Versão Final e Corrigida)
 
 // --- FUNÇÕES AUXILIARES DE FORMATAÇÃO ---
 
-/**
- * Converte graus decimais para uma string formatada (Graus° Minutos').
- * @param {number} decimal - Graus em formato decimal.
- * @returns {string} String formatada.
- */
 function decimalToDMS(decimal) {
+    if (decimal === undefined || decimal === null) return '';
     const degrees = Math.floor(decimal);
     const minutesFloat = (decimal - degrees) * 60;
     const minutes = Math.floor(minutesFloat);
-    // Opcional: segundos, mas minutos são suficientes para a maioria dos relatórios.
-    // const seconds = Math.round((minutesFloat - minutes) * 60);
-    return `${degrees}° ${String(minutes).padStart(2, '0')}'`;
+    return `${degrees}°${String(minutes).padStart(2, '0')}'`;
 }
 
-/**
- * Formata a secção "Condição" de um planeta.
- * @param {object} dignities - O objeto de dignidades de um planeta.
- * @returns {string} A string formatada da condição.
- */
+function capitalize(str) {
+    if (!str) return '';
+    return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
 function formatCondition(dignities) {
     if (!dignities) return "Condição: Sem dignidades clássicas";
-    if (Object.keys(dignities).length === 0) return "Condição: Peregrino";
 
-    const conditions = [];
-    if (dignities.domicile) conditions.push("Domicílio");
-    if (dignities.exaltation) conditions.push("Exaltação");
-    if (dignities.detriment) conditions.push("Exílio");
-    if (dignities.fall) conditions.push("Queda");
-    if (dignities.triplicity && !dignities.domicile && !dignities.exaltation) {
-        // Adiciona triplicidade apenas se não houver uma dignidade maior
-        conditions.push("Triplicidade");
+    const majorDignities = [];
+    if (dignities.domicile) majorDignities.push("Domicílio");
+    if (dignities.exaltation) majorDignities.push("Exaltação");
+    if (dignities.detriment) majorDignities.push("Exílio");
+    if (dignities.fall) majorDignities.push("Queda");
+    if (dignities.triplicity) majorDignities.push("Triplicidade");
+
+    if (majorDignities.length > 0) {
+        return `Condição: ${majorDignities.join(' e ')}`;
     }
     
-    // Se houver múltiplas dignidades maiores, junta-as.
-    if (conditions.length > 1) {
-       const last = conditions.pop();
-       return `Condição: ${conditions.join(', ')} e ${last}`;
-    }
-    return `Condição: ${conditions.join(', ')}`;
+    // CORREÇÃO: Se não houver dignidades maiores, é Peregrino.
+    return "Condição: Peregrino";
 }
 
-/**
- * Formata a secção "Detalhes" de um planeta.
- * @param {object} planet - O objeto completo de um planeta.
- * @returns {string} A string formatada dos detalhes.
- */
 function formatDetails(planet) {
     const details = [];
-    if (planet.degree_type !== 'Normal') {
-        details.push(`Grau ${planet.degree_type}`);
-    } else {
-        details.push('Grau Normal');
-    }
+    details.push(planet.degree_type === 'Normal' ? 'Grau Normal' : `Grau ${planet.degree_type}`);
 
     if (planet.dignities) {
-        if(planet.dignities.term) details.push(`Termo de ${planet.dignities.term}`);
-        if(planet.dignities.face) details.push(`${planet.dignities.decan}º Decanato (Face de ${planet.dignities.face})`);
+        if(planet.dignities.term) details.push(`Termo de ${capitalize(planet.dignities.term)}`);
+        if(planet.dignities.face) details.push(`${planet.dignities.decan}º Decanato (Face de ${capitalize(planet.dignities.face)})`);
     }
 
     details.push(`Dwadasamsa em ${planet.dwadasamsaSign}`);
@@ -67,13 +48,14 @@ function formatDetails(planet) {
     return `Detalhes: ${details.join('. ')}.`;
 }
 
+function findAspectBetween(p1, p2, aspects) {
+    return aspects.find(asp => 
+        (asp.point1 === p1 && asp.point2 === p2) || (asp.point1 === p2 && asp.point2 === p1)
+    );
+}
+
 // --- FUNÇÃO PRINCIPAL ---
 
-/**
- * Gera um relatório técnico completo a partir dos dados do mapa.
- * @param {object} data - O objeto de dados completo da API.
- * @returns {string} O relatório técnico formatado como texto.
- */
 function generateTechnicalReport(data) {
     const { moon_phase, planets, aspects, aspect_patterns } = data;
 
@@ -87,7 +69,7 @@ function generateTechnicalReport(data) {
         const p = planets[planetName];
         if (!p) return;
 
-        const planetTitle = planetName.charAt(0).toUpperCase() + planetName.slice(1).replace('_node', ' Nodo Norte');
+        const planetTitle = capitalize(planetName.replace('_node', ' Nodo Norte'));
         report += `${planetTitle}: ${decimalToDMS(p.longitude % 30)} de ${p.sign}\n`;
         report += `${formatCondition(p.dignities)}\n`;
         report += `${formatDetails(p)}\n\n`;
@@ -97,20 +79,28 @@ function generateTechnicalReport(data) {
         report += "--- Configurações de Aspetos Principais ---\n\n";
 
         aspect_patterns.forEach((pattern, index) => {
-            const planetDetails = pattern.planets.map(pName => {
-                const planetObj = planets[pName];
-                return `${pName.charAt(0).toUpperCase() + pName.slice(1)} (${decimalToDMS(planetObj.longitude % 30)} ${planetObj.sign})`;
-            }).join(' - ');
+            const apex = pattern.apex;
+            const otherPlanets = pattern.planets.filter(p => p !== apex);
+            
+            const p1_name = capitalize(otherPlanets[0]);
+            const p2_name = capitalize(otherPlanets[1]);
+            const apex_name = capitalize(apex);
 
-            report += `${pattern.name} ${index + 1}: ${planetDetails}\n`;
-            if (pattern.apex) {
-                report += `   Ápice: ${pattern.apex.charAt(0).toUpperCase() + pattern.apex.slice(1)}\n`;
-            }
+            const p1_pos = `${decimalToDMS(planets[otherPlanets[0]].longitude % 30)} ${planets[otherPlanets[0]].sign}`;
+            const p2_pos = `${decimalToDMS(planets[otherPlanets[1]].longitude % 30)} ${planets[otherPlanets[1]].sign}`;
+            const apex_pos = `${decimalToDMS(planets[apex].longitude % 30)} ${planets[apex].sign}`;
 
-            // Encontra os aspetos que formam o padrão
-            // Esta é uma lógica complexa, aqui está uma versão simplificada para ilustrar
-            // Você pode expandir isto para encontrar as orbes exatas se necessário.
-            report += `   (Formado por uma combinação de oposições, quadraturas ou outros aspetos entre estes planetas).\n\n`;
+            report += `${pattern.name} ${index + 1}: Oposição ${p1_name} (${p1_pos}) - ${p2_name} (${p2_pos}) com Ápice no ${apex_name} (${apex_pos})\n`;
+            
+            // CORREÇÃO: Lógica para encontrar e formatar os aspetos específicos
+            const opposition = findAspectBetween(otherPlanets[0], otherPlanets[1], aspects);
+            const square1 = findAspectBetween(otherPlanets[0], apex, aspects);
+            const square2 = findAspectBetween(otherPlanets[1], apex, aspects);
+
+            if(opposition) report += `   Oposição ${p1_name}-${p2_name}: Orbe de ${opposition.orb_degrees}°\n`;
+            if(square1) report += `   Quadratura ${p1_name}-${apex_name}: Orbe de ${square1.orb_degrees}°\n`;
+            if(square2) report += `   Quadratura ${p2_name}-${apex_name}: Orbe de ${square2.orb_degrees}°\n`;
+            report += '\n';
         });
     }
 
