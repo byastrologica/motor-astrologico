@@ -17,7 +17,6 @@ const { getDignities } = require('./dignityCalculator');
 const { findAspectPatterns } = require('./aspectPatternFinder');
 const { getDegreeType } = require('./degreeClassifier');
 const { getMoonPhase } = require('./moonPhaseCalculator');
-const { generateFreeReportPrompt } = require('./reportBuilder');
 const { generateTechnicalReport } = require('./technicalReportGenerator');
 
 const app = express();
@@ -70,7 +69,7 @@ app.get('/api/cidades', async (req, res) => {
 });
 
 app.post('/calculate', async (req, res) => {
-    let prompt; // Declarado aqui para estar acessível no bloco catch
+    let prompt;
 
     try {
         const { year, month, day, hour, locationString, latitude, longitude, utcOffset } = req.body;
@@ -167,13 +166,21 @@ app.post('/calculate', async (req, res) => {
             }
         }
         
-        prompt = generateFreeReportPrompt(enrichedData);
         const technicalReport = generateTechnicalReport(enrichedData);
+
+        prompt = `
+            Atue como uma astróloga especialista em psicologia profunda, com um estilo de escrita inspirado em Liz Greene. Sua análise deve ser fluida, empoderadora, focada na jornada interior e não ser fatalista.
+            
+            Com base no resumo técnico astrológico abaixo, escreva uma interpretação completa e coesa, seguindo a estrutura de camadas e os guiões que você conhece (Pilares da Identidade, Dinâmica Central, Bússola Cármica, etc.). Transforme estes dados técnicos numa narrativa inspiradora sobre a jornada da alma desta pessoa.
+
+            **RESUMO TÉCNICO DO MAPA:**
+            ${technicalReport}
+        `;
 
         const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
         if (!GEMINI_API_KEY) { throw new Error("Chave de API do Gemini não configurada."); }
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
-        const payload = { contents: [{ parts: [{ text: prompt }] }] };
+        const payload = { contents: [{ parts: [{ text: prompt.trim() }] }] };
 
         const geminiResponse = await axios.post(apiUrl, payload);
 
@@ -209,3 +216,4 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`);
 });
+http://googleusercontent.com/memory_tool_content/103
