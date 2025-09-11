@@ -1,4 +1,4 @@
-// technicalReportGenerator.js (Versão Final com Novo Layout)
+// technicalReportGenerator.js (Versão Final com Layout Corrigido)
 
 function decimalToDMS(decimal) {
     if (decimal === undefined || decimal === null) return '';
@@ -13,7 +13,6 @@ function capitalize(str) {
     return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-// Nova função de condição, mais completa
 function getConditionString(dignities) {
     if (!dignities) return "Sem dignidades clássicas";
     const majorDignities = [];
@@ -51,12 +50,12 @@ function generateTechnicalReport(data) {
         trine: 'Trígono', sextile: 'Sextil', quincunx: 'Quincunce'
     };
 
-    // --- NOVO LAYOUT DE GERAÇÃO ---
-    report += "--- Posição e Condições Planetárias ---\n\n";
-
     planetOrder.forEach(planetName => {
         const p = planets[planetName];
         if (!p) return;
+
+        // --- ALTERAÇÃO DE LAYOUT AQUI ---
+        report += "--- Posição e Condições Planetárias ---\n\n";
 
         const planetTitle = PLANET_NAMES_MAP[planetName] || capitalize(planetName);
         const degree = Math.floor(p.longitude % 30);
@@ -65,20 +64,20 @@ function generateTechnicalReport(data) {
         report += `${planetTitle}: ${decimalToDMS(p.longitude % 30)} de ${p.sign}\n\n`;
         report += `Movimento: ${p.speed < 0 ? 'Retrógrado' : 'Direto'}\n`;
         report += `Condição: ${getConditionString(p.dignities)}\n`;
+        
         if (p.dignities && p.dignities.decan) {
-            report += `Decanato: ${p.dignities.decan}º Decanato (Face de ${capitalize(p.dignities.face)})\n`;
+            report += `Decanato: ${p.dignities.decan}º Decanato (Face de ${PLANET_NAMES_MAP[p.dignities.face]})\n`;
         }
         if (p.dwadasamsaSign) {
             report += `Dwadasamsa: ${p.dwadasamsaSign}\n`;
         }
-        report += `Detalhes: ${p.degree_type}\n`;
+        report += `Tipo de Grau: ${p.degree_type}\n`;
         report += `Símbolo Sabiano: Grau ${sabianDegree}\n`;
         if (p.dignities && p.dignities.term) {
-            report += `Termo: ${capitalize(p.dignities.term)}\n`;
+            report += `Termo: ${PLANET_NAMES_MAP[p.dignities.term]}\n`;
         }
         report += "\n";
 
-        // --- GERAÇÃO DE ASPETOS POR PLANETA ---
         const planetAspects = aspects.filter(asp => (asp.point1 === planetName || asp.point2 === planetName) && ASPECT_NAMES_MAP[asp.aspect_type]);
         
         if (planetAspects.length > 0) {
@@ -106,17 +105,60 @@ function generateTechnicalReport(data) {
         report += "\n";
     });
 
-
     if (aspect_patterns && aspect_patterns.length > 0) {
         report += "--- Configurações de Aspetos Principais ---\n\n";
+        // Lógica de formatação de padrões de aspetos
         aspect_patterns.forEach((pattern, index) => {
-            const planetDetails = pattern.planets.map(pName => {
+             const planetDetails = pattern.planets.map(pName => {
                 const planetObj = planets[pName];
                 return `${PLANET_NAMES_MAP[pName] || capitalize(pName)} (${decimalToDMS(planetObj.longitude % 30)} ${planetObj.sign})`;
             }).join(' - ');
             report += `${pattern.name} ${index + 1}: ${planetDetails}\n`;
-            // Lógica para detalhar os aspetos do padrão
-            // (Esta parte permanece a mesma)
+            if (pattern.name === 'Grande Cruz') {
+                const [p1, p2, p3, p4] = pattern.planets;
+                const opp1 = findAspectBetween(p1, p3, aspects) || findAspectBetween(p1, p4, aspects) || findAspectBetween(p1, p2, aspects);
+                if(opp1){
+                    const p1_partner = opp1.point1 === p1 ? opp1.point2 : opp1.point1;
+                    const remaining_planets = [p2,p3,p4].filter(p => p !== p1 && p !== p1_partner);
+                    const opp2 = findAspectBetween(remaining_planets[0], remaining_planets[1], aspects);
+                    const sq1 = findAspectBetween(p1, remaining_planets[0], aspects);
+                    const sq2 = findAspectBetween(p1, remaining_planets[1], aspects);
+                    const sq3 = findAspectBetween(p1_partner, remaining_planets[0], aspects);
+                    const sq4 = findAspectBetween(p1_partner, remaining_planets[1], aspects);
+                    if(opp1) report += `   Oposição: ${capitalize(opp1.point1)} - ${capitalize(opp1.point2)} (Orbe: ${opp1.orb_degrees}°)\n`;
+                    if(opp2) report += `   Oposição: ${capitalize(opp2.point1)} - ${capitalize(opp2.point2)} (Orbe: ${opp2.orb_degrees}°)\n`;
+                    if(sq1 && sq1.aspect_type === 'square') report += `   Quadratura: ${capitalize(sq1.point1)} - ${capitalize(sq1.point2)} (Orbe: ${sq1.orb_degrees}°)\n`;
+                    if(sq2 && sq2.aspect_type === 'square') report += `   Quadratura: ${capitalize(sq2.point1)} - ${capitalize(sq2.point2)} (Orbe: ${sq2.orb_degrees}°)\n`;
+                    if(sq3 && sq3.aspect_type === 'square') report += `   Quadratura: ${capitalize(sq3.point1)} - ${capitalize(sq3.point2)} (Orbe: ${sq3.orb_degrees}°)\n`;
+                    if(sq4 && sq4.aspect_type === 'square') report += `   Quadratura: ${capitalize(sq4.point1)} - ${capitalize(sq4.point2)} (Orbe: ${sq4.orb_degrees}°)\n`;
+                }
+            } else if (pattern.name === 'T-Square' && pattern.apex) {
+                const oppositionPlanets = pattern.planets.filter(p => p !== pattern.apex);
+                const opposition = findAspectBetween(oppositionPlanets[0], oppositionPlanets[1], aspects);
+                const square1 = findAspectBetween(oppositionPlanets[0], pattern.apex, aspects);
+                const square2 = findAspectBetween(oppositionPlanets[1], pattern.apex, aspects);
+                report += `   Ápice (Ponto Focal): ${capitalize(pattern.apex)}\n`;
+                if(opposition) report += `   Oposição: ${capitalize(opposition.point1)} - ${capitalize(opposition.point2)} (Orbe: ${opposition.orb_degrees}°)\n`;
+                if(square1) report += `   Quadratura: ${capitalize(square1.point1)} - ${capitalize(pattern.apex)} (Orbe: ${square1.orb_degrees}°)\n`;
+                if(square2) report += `   Quadratura: ${capitalize(square2.point1)} - ${capitalize(pattern.apex)} (Orbe: ${square2.orb_degrees}°)\n`;
+            } else if (pattern.name === 'YOD' && pattern.apex) {
+                const basePlanets = pattern.planets.filter(p => p !== pattern.apex);
+                const baseAspect = findAspectBetween(basePlanets[0], basePlanets[1], aspects);
+                const quincunx1 = findAspectBetween(basePlanets[0], pattern.apex, aspects);
+                const quincunx2 = findAspectBetween(basePlanets[1], pattern.apex, aspects);
+                report += `   Ápice (Ponto Focal): ${capitalize(pattern.apex)}\n`;
+                if(baseAspect) report += `   Base: ${capitalize(baseAspect.aspect_type)} entre ${capitalize(basePlanets[0])} e ${capitalize(basePlanets[1])} (Orbe: ${baseAspect.orb_degrees}°)\n`;
+                if(quincunx1) report += `   Quincunce: ${capitalize(basePlanets[0])} - ${capitalize(pattern.apex)} (Orbe: ${quincunx1.orb_degrees}°)\n`;
+                if(quincunx2) report += `   Quincunce: ${capitalize(basePlanets[1])} - ${capitalize(pattern.apex)} (Orbe: ${quincunx2.orb_degrees}°)\n`;
+            } else if (pattern.name === 'Grande Trígono') {
+                const [p1, p2, p3] = pattern.planets;
+                const trine1 = findAspectBetween(p1, p2, aspects);
+                const trine2 = findAspectBetween(p2, p3, aspects);
+                const trine3 = findAspectBetween(p1, p3, aspects);
+                if(trine1) report += `   Trígono: ${capitalize(p1)} - ${capitalize(p2)} (Orbe: ${trine1.orb_degrees}°)\n`;
+                if(trine2) report += `   Trígono: ${capitalize(p2)} - ${capitalize(p3)} (Orbe: ${trine2.orb_degrees}°)\n`;
+                if(trine3) report += `   Trígono: ${capitalize(p1)} - ${capitalize(p3)} (Orbe: ${trine3.orb_degrees}°)\n`;
+            }
             report += '\n';
         });
     }
