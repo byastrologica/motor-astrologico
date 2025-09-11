@@ -1,4 +1,4 @@
-// technicalReportGenerator.js (Versão Final com Símbolo Sabiano e Latitude)
+// technicalReportGenerator.js (Versão Final sem Latitude)
 
 // --- FUNÇÕES AUXILIARES DE FORMATAÇÃO ---
 
@@ -38,8 +38,6 @@ function formatDetails(planet) {
     const sabianDegree = degree + 1;
 
     details.push(planet.degree_type === 'Normal' ? 'Grau Normal' : `Grau ${planet.degree_type}`);
-    
-    // ADICIONADO: Símbolo Sabiano
     details.push(`Símbolo Sabiano: Grau ${sabianDegree}`);
 
     if (planet.dignities) {
@@ -49,12 +47,6 @@ function formatDetails(planet) {
 
     details.push(`Dwadasamsa em ${planet.dwadasamsaSign}`);
     details.push(`Movimento ${planet.speed < 0 ? 'retrógrado' : 'direto'}`);
-
-    // ADICIONADO: Latitude
-    // A latitude 0.0 para o Nodo Norte é normal
-    if (planet.latitude !== undefined) {
-        details.push(`Latitude: ${planet.latitude.toFixed(4)}`);
-    }
 
     return `Detalhes: ${details.join('. ')}.`;
 }
