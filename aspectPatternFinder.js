@@ -1,13 +1,6 @@
-// aspectPatternFinder.js (Versão Final e Corrigida)
+// aspectPatternFinder.js (Versão Final com Hierarquia)
 
-/**
- * Função principal para encontrar todas as configurações de aspetos num mapa.
- * @param {Array<object>} aspects - A lista de aspetos calculados.
- * @returns {Array<object>} Uma lista de padrões encontrados.
- */
 function findAspectPatterns(aspects) {
-    const patterns = [];
-
     const aspectsByType = {
         opposition: aspects.filter(a => a.aspect_type === 'opposition'),
         square: aspects.filter(a => a.aspect_type === 'square'),
@@ -16,12 +9,41 @@ function findAspectPatterns(aspects) {
         quincunx: aspects.filter(a => a.aspect_type === 'quincunx'),
     };
 
-    patterns.push(...findTSquares(aspectsByType));
-    patterns.push(...findGrandTrines(aspectsByType));
-    patterns.push(...findYods(aspectsByType));
-    patterns.push(...findGrandCrosses(aspectsByType));
+    const grandCrosses = findGrandCrosses(aspectsByType);
+    const grandTrines = findGrandTrines(aspectsByType);
+    const tsquares = findTSquares(aspectsByType);
+    const yods = findYods(aspectsByType);
 
-    return removeDuplicatePatterns(patterns);
+    // --- LÓGICA DE HIERARQUIA E FILTRAGEM ---
+    let finalPatterns = [];
+    const planetsInMajorPatterns = new Set();
+
+    // Prioridade 1: Grandes Cruzes
+    grandCrosses.forEach(gc => {
+        finalPatterns.push(gc);
+        gc.planets.forEach(p => planetsInMajorPatterns.add(p));
+    });
+
+    // Prioridade 2: Grandes Trígonos
+    grandTrines.forEach(gt => {
+        finalPatterns.push(gt);
+        gt.planets.forEach(p => planetsInMajorPatterns.add(p));
+    });
+
+    // Adiciona T-Squares apenas se os seus planetas já não fizerem parte de uma Grande Cruz
+    tsquares.forEach(ts => {
+        const isPartOfMajorPattern = ts.planets.some(p => planetsInMajorPatterns.has(p));
+        if (!isPartOfMajorPattern) {
+            finalPatterns.push(ts);
+        }
+    });
+
+    // Adiciona Yods
+    yods.forEach(yod => {
+        finalPatterns.push(yod);
+    });
+
+    return removeDuplicatePatterns(finalPatterns);
 }
 
 // Encontra T-Squares (Oposição + 2 Quadraturas)
@@ -33,9 +55,12 @@ function findTSquares(aspectsByType) {
         
         for (const s1 of squaresP1) {
             const apex = s1.point1 === p1 ? s1.point2 : s1.point1;
+            if (apex === p2) continue; // Garante que o ápice não é o outro planeta da oposição
+            
             const hasSecondSquare = aspectsByType.square.some(s2 =>
                 (s2.point1 === p2 && s2.point2 === apex) || (s2.point1 === apex && s2.point2 === p2)
             );
+
             if (hasSecondSquare) {
                 tsquares.push({ name: 'T-Square', planets: [p1, p2, apex].sort(), apex: apex });
             }
@@ -83,6 +108,8 @@ function findYods(aspectsByType) {
 
         for (const q1 of quincunxesP1) {
             const apex = q1.point1 === p1 ? q1.point2 : q1.point1;
+            if (apex === p2) continue;
+
             const hasSecondQuincunx = aspectsByType.quincunx.some(q2 =>
                 ((q2.point1 === p2 && q2.point2 === apex) || (q2.point1 === apex && q2.point2 === p2))
             );
@@ -120,11 +147,9 @@ function findGrandCrosses(aspectsByType) {
     return grandCrosses;
 }
 
-// Garante que cada padrão único seja listado apenas uma vez
 function removeDuplicatePatterns(patterns) {
     const seen = new Set();
     return patterns.filter(pattern => {
-        // Ordena os planetas para garantir uma identificação consistente
         const identifier = `${pattern.name}-${pattern.planets.sort().join(',')}`;
         if (seen.has(identifier)) {
             return false;
