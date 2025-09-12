@@ -1,34 +1,18 @@
 // getDwadasamsaSign.js
 
-// Importa a lista de signos do arquivo de constantes
 const { ZODIAC_SIGNS } = require('./constants');
 
-/**
- * Calcula o signo da Dwadasamsa de um corpo celeste.
- * @param {string} planetSign - O signo do planeta (ex: 'ARIES'). Deve estar em maiúsculas.
- * @param {number} planetDegrees - A posição em graus decimais dentro do signo (0 a 29.99).
- * @returns {string} O nome do signo da Dwadasamsa.
- */
 function getDwadasamsaSign(planetSign, planetDegrees) {
-  // A lista de signos em maiúsculas para consistência
-  const ZODIAC_SIGNS_UPPER = ZODIAC_SIGNS.map(s => s.toUpperCase());
+    if (!planetSign) return null;
+    const ZODIAC_SIGNS_UPPER = ZODIAC_SIGNS.map(s => s.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+    const signNormalized = planetSign.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    
+    const startSignIndex = ZODIAC_SIGNS_UPPER.indexOf(signNormalized);
+    if (startSignIndex === -1) return null;
 
-  // Encontra o índice do signo inicial (0-11)
-  const startSignIndex = ZODIAC_SIGNS_UPPER.indexOf(planetSign.toUpperCase());
-
-  if (startSignIndex === -1) {
-    // Retorna nulo ou um erro se o signo for inválido, para tratamento posterior
-    return null; 
-  }
-
-  // Calcula o índice da dwadasamsa (0-11)
-  const dwadasamsaIndex = Math.floor(planetDegrees / 2.5);
-
-  // Calcula o índice do signo final, usando módulo para o "wrap-around" do zodíaco
-  const finalSignIndex = (startSignIndex + dwadasamsaIndex) % 12;
-
-  // Retorna o nome do signo a partir da lista original para manter o formato
-  return ZODIAC_SIGNS[finalSignIndex];
+    const dwadasamsaIndex = Math.floor(planetDegrees / 2.5);
+    const finalSignIndex = (startSignIndex + dwadasamsaIndex) % 12;
+    return ZODIAC_SIGNS[finalSignIndex];
 }
 
 module.exports = { getDwadasamsaSign };
