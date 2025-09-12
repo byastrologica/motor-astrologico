@@ -130,6 +130,13 @@ app.post('/calculate', async (req, res) => {
         };
         
         const foundAspects = calculateAspects(calculatedPlanets);
+
+        for (const planetName in calculatedPlanets) {
+            const planet = calculatedPlanets[planetName];
+            const { name: signName } = getZodiacSign(planet.longitude);
+            planet.sign = signName;
+        }
+        
         const enrichedData = {
             moon_phase: getMoonPhase(calculatedPlanets.sun.longitude, calculatedPlanets.moon.longitude),
             planets: calculatedPlanets,
@@ -144,16 +151,16 @@ app.post('/calculate', async (req, res) => {
 
         for (const planetName in enrichedData.planets) {
             const planet = enrichedData.planets[planetName];
-            const { name: signName, decimalDegrees } = getZodiacSign(planet.longitude);
-            planet.sign = signName;
-            planet.degree_type = getDegreeType(signName, decimalDegrees);
-            planet.dwadasamsaSign = getDwadasamsaSign(signName, decimalDegrees);
+            const { decimalDegrees } = getZodiacSign(planet.longitude);
+            planet.degree_type = getDegreeType(planet.sign, decimalDegrees);
+            planet.dwadasamsaSign = getDwadasamsaSign(planet.sign, decimalDegrees);
             if (classicalPlanets.includes(planetName)) {
-                planet.dignities = getDignities(planetName, signName, decimalDegrees, isDiurnal);
+                planet.dignities = getDignities(planetName, planet.sign, decimalDegrees, isDiurnal);
             }
         }
         
         const technicalReport = generateTechnicalReport(enrichedData);
+        
         res.setHeader('Content-Type', 'text/plain; charset=utf-8');
         res.status(200).send(technicalReport);
 
