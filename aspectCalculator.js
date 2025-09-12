@@ -9,12 +9,6 @@ const aspectsConfig = {
     quincunx: { angle: 150, orb: 3 }
 };
 
-/**
- * Calcula a menor distância angular entre dois pontos num círculo.
- * @param {number} lon1 - Longitude do primeiro ponto.
- * @param {number} lon2 - Longitude do segundo ponto.
- * @returns {number} A distância angular (0-180).
- */
 function getAngularDistance(lon1, lon2) {
     let distance = Math.abs(lon1 - lon2);
     if (distance > 180) {
@@ -23,40 +17,26 @@ function getAngularDistance(lon1, lon2) {
     return distance;
 }
 
-/**
- * Calcula todos os aspetos entre os planetas, incluindo o status aplicativo/separativo.
- * @param {object} planets - O objeto `calculatedPlanets` com todos os dados.
- * @returns {Array<object>} A lista de aspetos encontrados.
- */
 function calculateAspects(planets) {
     const planetKeys = Object.keys(planets);
     const foundAspects = [];
-
     for (let i = 0; i < planetKeys.length; i++) {
         for (let j = i + 1; j < planetKeys.length; j++) {
             const p1_name = planetKeys[i];
             const p2_name = planetKeys[j];
             const p1 = planets[p1_name];
             const p2 = planets[p2_name];
-
             if (!p1 || !p2) continue;
-
             const distance = getAngularDistance(p1.longitude, p2.longitude);
-
             for (const aspectName in aspectsConfig) {
                 const aspect = aspectsConfig[aspectName];
                 const orb_atual = Math.abs(distance - aspect.angle);
-
                 if (orb_atual <= aspect.orb) {
-                    // Lógica Aplicativo/Separativo
-                    const p1_future_lon = p1.longitude + (p1.speed / 24); // Simula 1 hora no futuro
+                    const p1_future_lon = p1.longitude + (p1.speed / 24);
                     const p2_future_lon = p2.longitude + (p2.speed / 24);
-                    
                     const future_distance = getAngularDistance(p1_future_lon, p2_future_lon);
                     const orb_futuro = Math.abs(future_distance - aspect.angle);
-
                     const status = (orb_futuro < orb_atual) ? 'Applying' : 'Separating';
-
                     foundAspects.push({
                         point1: p1_name,
                         point2: p2_name,
