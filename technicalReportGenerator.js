@@ -13,6 +13,8 @@ function capitalize(str) {
     return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
+// --- CORREÇÃO AQUI ---
+// A função agora retorna apenas o valor, não o rótulo "Condição:".
 function getConditionString(dignities) {
     if (!dignities) return "Sem dignidades clássicas";
     const majorDignities = [];
@@ -22,26 +24,9 @@ function getConditionString(dignities) {
     if (dignities.fall) majorDignities.push("Queda");
     if (dignities.triplicity) majorDignities.push("Triplicidade");
     if (majorDignities.length > 0) {
-        return `Condição: ${majorDignities.join(' e ')}`;
+        return majorDignities.join(' e ');
     }
-    return "Condição: Peregrino";
-}
-
-function formatDetails(planet) {
-    const details = [];
-    const degree = Math.floor(planet.longitude % 30);
-    const sabianDegree = degree + 1;
-    details.push(planet.degree_type === 'Normal' ? 'Grau Normal' : `Grau ${planet.degree_type}`);
-    details.push(`Símbolo Sabiano: Grau ${sabianDegree}`);
-    if (planet.dignities) {
-        if(planet.dignities.term) details.push(`Termo de ${capitalize(planet.dignities.term)}`);
-        if(planet.dignities.face) details.push(`${planet.dignities.decan}º Decanato (Face de ${capitalize(planet.dignities.face)})`);
-    }
-    if (planet.dwadasamsaSign) {
-        details.push(`Dwadasamsa em ${planet.dwadasamsaSign}`);
-    }
-    details.push(`Movimento ${planet.speed < 0 ? 'retrógrado' : 'direto'}`);
-    return `Detalhes: ${details.join('. ')}.`;
+    return "Peregrino";
 }
 
 function findAspectBetween(p1, p2, aspects) {
@@ -80,16 +65,20 @@ function generateTechnicalReport(data) {
         trine: 'Trígono', sextile: 'Sextil', quincunce: 'Quincunce'
     };
 
-    planetOrder.forEach((planetName) => {
+    planetOrder.forEach((planetName, index) => {
         const p = planets[planetName];
         if (!p) return;
         
+        if (index > 0) {
+            report += "----------------------------------------\n\n";
+        }
         report += "--- Posição e Condições Planetárias ---\n\n";
 
         const planetTitle = PLANET_NAMES_MAP[planetName] || capitalize(planetName);
         
         report += `${planetTitle}: ${decimalToDMS(p.longitude % 30)} de ${p.sign}\n\n`;
         report += `Movimento: ${p.speed < 0 ? 'Retrógrado' : 'Direto'}\n`;
+        // O rótulo "Condição:" agora é adicionado apenas aqui.
         report += `Condição: ${getConditionString(p.dignities)}\n`;
         
         if (p.dignities && p.dignities.decan) {
@@ -130,10 +119,10 @@ function generateTechnicalReport(data) {
                 }
             });
         }
-        report += "\n";
     });
 
     if (aspect_patterns && aspect_patterns.length > 0) {
+        report += "\n----------------------------------------\n\n";
         report += "--- Configurações de Aspetos Principais ---\n\n";
         aspect_patterns.forEach((pattern, index) => {
              const planetDetails = pattern.planets.map(pName => {
