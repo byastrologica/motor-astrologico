@@ -1,4 +1,4 @@
-// technicalReportGenerator.js (Versão Final com Layout Corrigido)
+// technicalReportGenerator.js
 
 function decimalToDMS(decimal) {
     if (decimal === undefined || decimal === null) return '';
@@ -22,9 +22,9 @@ function getConditionString(dignities) {
     if (dignities.fall) majorDignities.push("Queda");
     if (dignities.triplicity) majorDignities.push("Triplicidade");
     if (majorDignities.length > 0) {
-        return majorDignities.join(' e ');
+        return `Condição: ${majorDignities.join(' e ')}`;
     }
-    return "Peregrino";
+    return "Condição: Peregrino";
 }
 
 function findAspectBetween(p1, p2, aspects) {
@@ -35,10 +35,8 @@ function findAspectBetween(p1, p2, aspects) {
 
 function generateTechnicalReport(data) {
     const { moon_phase, planets, aspects, aspect_patterns, balances } = data;
-
     let report = "Resumo Astrológico do Mapa\n\n";
     report += `Fase Lunar de Nascimento: ${moon_phase}\n\n`;
-
     if (balances) {
         report += "--- Balanço de Elementos e Modos ---\n\n";
         report += "Elementos (Temperamento):\n";
@@ -51,7 +49,6 @@ function generateTechnicalReport(data) {
         report += `   - Fixo: ${balances.modes.Fixo}\n`;
         report += `   - Mutável: ${balances.modes.Mutável}\n\n`;
     }
-    
     const planetOrder = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto', 'north_node', 'south_node'];
     const PLANET_NAMES_MAP = {
         sun: 'Sol', moon: 'Lua', mercury: 'Mercúrio', venus: 'Vênus', mars: 'Marte',
@@ -62,21 +59,19 @@ function generateTechnicalReport(data) {
         conjunction: 'Conjunção', opposition: 'Oposição', square: 'Quadratura',
         trine: 'Trígono', sextile: 'Sextil', quincunce: 'Quincunce'
     };
-
     planetOrder.forEach((planetName, index) => {
         const p = planets[planetName];
         if (!p) return;
-
+        if (index > 0) {
+             report += "\n----------------------------------------\n\n";
+        }
         report += "--- Posição e Condições Planetárias ---\n\n";
-
         const planetTitle = PLANET_NAMES_MAP[planetName] || capitalize(planetName);
         const degree = Math.floor(p.longitude % 30);
         const sabianDegree = degree + 1;
-
         report += `${planetTitle}: ${decimalToDMS(p.longitude % 30)} de ${p.sign}\n\n`;
         report += `Movimento: ${p.speed < 0 ? 'Retrógrado' : 'Direto'}\n`;
         report += `Condição: ${getConditionString(p.dignities)}\n`;
-        
         if (p.dignities && p.dignities.decan) {
             report += `Decanato: ${p.dignities.decan}º Decanato (Face de ${PLANET_NAMES_MAP[p.dignities.face]})\n`;
         }
@@ -89,19 +84,15 @@ function generateTechnicalReport(data) {
             report += `Termo: ${PLANET_NAMES_MAP[p.dignities.term]}\n`;
         }
         report += "\n";
-
         const planetAspects = aspects.filter(asp => (asp.point1 === planetName || asp.point2 === planetName) && ASPECT_NAMES_MAP[asp.aspect_type]);
-        
         if (planetAspects.length > 0) {
             report += "--- Aspetos Ptolomaicos ---\n\n";
-            
             const aspectsByType = { conjunction: [], opposition: [], square: [], trine: [], sextile: [] };
             planetAspects.forEach(aspect => {
                 if (aspectsByType[aspect.aspect_type]) {
                     aspectsByType[aspect.aspect_type].push(aspect);
                 }
             });
-
             Object.keys(aspectsByType).forEach(type => {
                 if (aspectsByType[type].length > 0) {
                     report += `${capitalize(ASPECT_NAMES_MAP[type])}\n`;
@@ -114,14 +105,10 @@ function generateTechnicalReport(data) {
                 }
             });
         }
-        
-        // Adiciona um separador visual apenas se não for o último planeta
-        if (index < planetOrder.length - 1) {
-             report += "\n";
-        }
     });
 
     if (aspect_patterns && aspect_patterns.length > 0) {
+        report += "\n----------------------------------------\n\n";
         report += "--- Configurações de Aspetos Principais ---\n\n";
         aspect_patterns.forEach((pattern, index) => {
              const planetDetails = pattern.planets.map(pName => {
@@ -177,7 +164,6 @@ function generateTechnicalReport(data) {
             report += '\n';
         });
     }
-
     return report.trim();
 }
 
