@@ -9,7 +9,7 @@ const { ZODIAC_SIGNS } = require('./constants');
  * Formata um objeto de dignidades numa string de dados legível para a IA.
  */
 function formatDignitiesForPrompt(dignities) {
-    if (!dignities || Object.keys(dignities).length === 0) return "Condição: Peregrino";
+    if (!dignities || Object.keys(dignities).length === 0) return "Condição: Peregrino (age de forma independente, sem apoio ou hostilidade do signo).";
     const parts = [];
     if (dignities.domicile) parts.push("Domicílio (muito forte)");
     if (dignities.exaltation) parts.push("Exaltação (muito forte)");
@@ -63,7 +63,7 @@ function createSunPrompt(sun, aspects) {
     - Planeta: Sol
     - Posição: ${Math.floor(sun.longitude % 30)}° de ${sun.sign}
     - Movimento: ${sun.speed < 0 ? 'Retrógrado' : 'Direto'}
-    - ${formatDignities(sun.dignities)}
+    - ${formatDignitiesForPrompt(sun.dignities)}
     - Decanato/Face: ${sun.dignities.decan}º (${sun.dignities.face})
     - Termo: ${sun.dignities.term}
     - Dwadasamsa (motivação oculta): ${sun.dwadasamsaSign}
@@ -84,7 +84,7 @@ function createMoonPrompt(moon, aspects) {
     - Posição: ${Math.floor(moon.longitude % 30)}° de ${moon.sign}
     - Grau: ${moon.degree_type}
     - Movimento: ${moon.speed < 0 ? 'Retrógrado' : 'Direto'}
-    - ${formatDignities(moon.dignities)}
+    - ${formatDignitiesForPrompt(moon.dignities)}
     - Decanato/Face: ${moon.dignities.decan}º (${moon.dignities.face})
     - Termo: ${moon.dignities.term}
     - Dwadasamsa (motivação oculta): ${moon.dwadasamsaSign}
@@ -127,7 +127,6 @@ ${nodesData}`;
 async function generateFreeReport(data) {
     const { planets, aspects, moon_phase } = data;
 
-    // Gera cada parte da interpretação em paralelo para mais eficiência
     const sunPrompt = createSunPrompt(planets.sun, aspects);
     const moonPrompt = createMoonPrompt(planets.moon, aspects);
     const nodesAndPhasePrompt = createNodesAndPhasePrompt(moon_phase, planets.north_node);
@@ -138,7 +137,6 @@ async function generateFreeReport(data) {
         callGeminiAPI(nodesAndPhasePrompt)
     ]);
 
-    // Monta o relatório final a partir das partes
     const finalReport = `
 # A Essência da Sua Alma
 
