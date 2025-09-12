@@ -18,23 +18,15 @@ async function callGeminiAPI(prompt, apiKey) {
     }
 }
 
-/**
- * Gera a interpretação final e completa usando o relatório técnico como base.
- * @param {string} technicalReport - O relatório técnico já formatado.
- * @returns {Promise<string>} O texto da interpretação final.
- */
 async function generateFinalInterpretation(technicalReport) {
     const apiKey = process.env.GEMINI_API_KEY;
-
     const prompt = `
         Atue como uma astróloga especialista em psicologia profunda, com um estilo de escrita inspirado em Liz Greene. Sua análise deve ser fluida, empoderadora, focada na jornada interior e não ser fatalista.
-        
-        Com base no resumo técnico astrológico completo abaixo, escreva uma interpretação integrada e coesa. Não apenas repita os dados, mas teça-os numa narrativa psicológica profunda sobre as forças, potenciais, desafios e a história da alma da pessoa. Siga a estrutura de camadas que você conhece.
+        Com base no resumo técnico astrológico completo abaixo, escreva uma interpretação integrada e coesa. Não apenas repita os dados, mas teça-os numa narrativa psicológica profunda sobre as forças, potenciais, desafios e a história da alma da pessoa.
 
         **RESUMO TÉCNICO COMPLETO DO MAPA:**
         ${technicalReport}
     `;
-
     return await callGeminiAPI(prompt, apiKey);
 }
 
