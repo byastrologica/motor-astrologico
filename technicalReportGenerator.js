@@ -13,8 +13,8 @@ function capitalize(str) {
     return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-function formatCondition(dignities) {
-    if (!dignities) return "Condição: Sem dignidades clássicas";
+function getConditionString(dignities) {
+    if (!dignities) return "Sem dignidades clássicas";
     const majorDignities = [];
     if (dignities.domicile) majorDignities.push("Domicílio");
     if (dignities.exaltation) majorDignities.push("Exaltação");
@@ -80,19 +80,17 @@ function generateTechnicalReport(data) {
         trine: 'Trígono', sextile: 'Sextil', quincunce: 'Quincunce'
     };
 
-    planetOrder.forEach((planetName, index) => {
+    planetOrder.forEach((planetName) => {
         const p = planets[planetName];
         if (!p) return;
         
-        if (index > 0) {
-            report += "----------------------------------------\n\n";
-        }
         report += "--- Posição e Condições Planetárias ---\n\n";
 
         const planetTitle = PLANET_NAMES_MAP[planetName] || capitalize(planetName);
+        
         report += `${planetTitle}: ${decimalToDMS(p.longitude % 30)} de ${p.sign}\n\n`;
         report += `Movimento: ${p.speed < 0 ? 'Retrógrado' : 'Direto'}\n`;
-        report += `${formatCondition(p.dignities)}\n`;
+        report += `Condição: ${getConditionString(p.dignities)}\n`;
         
         if (p.dignities && p.dignities.decan) {
             report += `Decanato: ${p.dignities.decan}º Decanato (Face de ${PLANET_NAMES_MAP[p.dignities.face]})\n`;
@@ -113,6 +111,7 @@ function generateTechnicalReport(data) {
         
         if (planetAspects.length > 0) {
             report += "--- Aspetos Ptolomaicos ---\n\n";
+            
             const aspectsByType = { conjunction: [], opposition: [], square: [], trine: [], sextile: [] };
             planetAspects.forEach(aspect => {
                 if (aspectsByType[aspect.aspect_type]) {
@@ -131,10 +130,10 @@ function generateTechnicalReport(data) {
                 }
             });
         }
+        report += "\n";
     });
 
     if (aspect_patterns && aspect_patterns.length > 0) {
-        report += "\n----------------------------------------\n\n";
         report += "--- Configurações de Aspetos Principais ---\n\n";
         aspect_patterns.forEach((pattern, index) => {
              const planetDetails = pattern.planets.map(pName => {
