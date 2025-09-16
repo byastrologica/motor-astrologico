@@ -21,10 +21,6 @@ const { generateTechnicalReport } = require('./technicalReportGenerator');
 const { calculateAspects } = require('./aspectCalculator');
 const { calculateBalances } = require('./balanceCalculator');
 
-// ===== NOSSA NOVA IMPORTAÇÃO PARA O SERVIÇO DE IA =====
-const interpretationService = require('./interpretationService');
-// =======================================================
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 app.use(express.json());
@@ -32,7 +28,6 @@ app.use(cors());
 
 sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
-// ... (todo o seu código original de geocodeLocation, buscarCidade, etc. permanece aqui, sem alterações)
 async function geocodeLocation(locationString) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY;
     if (!CHAVE_API) { throw new Error("Chave de API da Geoapify não configurada."); }
@@ -74,37 +69,6 @@ app.get('/api/cidades', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
-// #######################################################################
-// #####           NOSSO NOVO ENDPOINT DE INTERPRETAÇÃO COM IA         #####
-// #######################################################################
-app.post('/generate-interpretation', async (req, res) => {
-    try {
-        // O corpo da requisição deve ter os dados astrológicos e o plano
-        const { astrologicalData, plan } = req.body;
-
-        if (!astrologicalData || !plan) {
-            return res.status(400).json({ error: 'Os campos "astrologicalData" e "plan" são obrigatórios.' });
-        }
-        if (plan !== 'free' && plan !== 'low-ticket') {
-             return res.status(400).json({ error: 'O campo "plan" deve ser "free" ou "low-ticket".' });
-        }
-        
-        console.log(`Iniciando geração de interpretação para o plano: ${plan}`);
-        
-        // Chamamos nosso serviço de IA com os dados recebidos
-        const reportText = await interpretationService.generateInterpretation(astrologicalData, plan);
-
-        // Enviamos o relatório de texto puro de volta
-        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-        res.status(200).send(reportText);
-
-    } catch (error) {
-        console.error("Erro no endpoint de interpretação:", error);
-        res.status(500).json({ error: 'Erro interno ao gerar a interpretação.', details: error.toString() });
-    }
-});
-
 
 app.post('/calculate', async (req, res) => {
     try {
@@ -195,9 +159,10 @@ app.post('/calculate', async (req, res) => {
             }
         }
         
-        // ATENÇÃO: Seu endpoint /calculate agora retornará o objeto JSON completo.
-        // O relatório técnico em texto puro não é mais necessário aqui.
-        res.status(200).json(enrichedData);
+        const technicalReport = generateTechnicalReport(enrichedData);
+        
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.status(200).send(technicalReport);
 
     } catch (error) {
         console.error("Erro no cálculo:", error);
