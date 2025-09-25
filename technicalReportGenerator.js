@@ -13,7 +13,6 @@ function capitalize(str) {
     return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-// --- CORREÇÃO AQUI ---
 // A função agora retorna apenas o valor, não o rótulo "Condição:".
 function getConditionString(dignities) {
     if (!dignities) return "Sem dignidades clássicas";
@@ -69,9 +68,9 @@ function generateTechnicalReport(data) {
         const p = planets[planetName];
         if (!p) return;
         
-        if (index > 0) {
-            report += "----------------------------------------\n\n";
-        }
+        // --- ALTERAÇÃO REALIZADA AQUI ---
+        // O bloco "if (index > 0)" que adicionava a linha de traços foi removido.
+        
         report += "--- Posição e Condições Planetárias ---\n\n";
 
         const planetTitle = PLANET_NAMES_MAP[planetName] || capitalize(planetName);
