@@ -19,8 +19,9 @@ const { getMoonPhase } = require('./moonPhaseCalculator');
 const { generateTechnicalReport } = require('./technicalReportGenerator');
 const { calculateAspects } = require('./aspectCalculator');
 const { calculateBalances } = require('./balanceCalculator');
-// --- NOVA IMPORTAÇÃO ---
-const { generateFinalInterpretation } = require('./interpretationEngine');
+
+// REMOVEMOS A IMPORTAÇÃO DO interpretationEngine
+// const { generateFinalInterpretation } = require('./interpretationEngine');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -187,20 +188,12 @@ app.post('/calculate', async (req, res) => {
         }
         
         // --- MUDANÇA PRINCIPAL AQUI ---
+        // Voltamos a gerar o relatório e enviá-lo diretamente.
         
-        // 1. Gerar o relatório técnico como antes
         const technicalReport = generateTechnicalReport(enrichedData);
 
-        // 2. Chamar o motor de interpretação com o relatório
-        console.log("Gerando interpretação final com a API do Gemini...");
-        const finalInterpretation = await generateFinalInterpretation(technicalReport);
-
-        // 3. Enviar a interpretação final como um JSON
-        res.status(200).json({
-            interpretation: finalInterpretation,
-            // Opcional: você também pode enviar o relatório técnico se quiser
-            // technical_report: technicalReport 
-        });
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.status(200).send(technicalReport);
 
     } catch (error) {
         console.error("Erro no cálculo:", error);
