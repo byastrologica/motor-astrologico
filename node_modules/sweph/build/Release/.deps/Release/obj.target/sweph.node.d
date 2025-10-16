@@ -1,0 +1,1 @@
+cmd_Release/obj.target/sweph.node := g++ -o Release/obj.target/sweph.node -shared -pthread -rdynamic -m64  -Wl,-soname=sweph.node -Wl,--start-group Release/obj.target/sweph/src/sweph.o Release/obj.target/sweph/src/functions.o Release/obj.target/swisseph.a -Wl,--end-group 
