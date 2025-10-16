@@ -20,7 +20,7 @@ const { generateTechnicalReport } = require('./technicalReportGenerator');
 const { calculateAspects } = require('./aspectCalculator');
 const { calculateBalances } = require('./balanceCalculator');
 // --- NOVA IMPORTAÇÃO ---
-const { generateFinalInterpretation } = require('./interpretationEngine');
+const { calculateChiron } = require('./chironCalculator');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -32,19 +32,13 @@ sweph.set_ephe_path(__dirname + '/node_modules/sweph/ephe');
 
 async function geocodeLocation(locationString) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY;
-    if (!CHAVE_API) {
-        throw new Error("Chave de API da Geoapify não configurada.");
-    }
+    if (!CHAVE_API) { throw new Error("Chave de API da Geoapify não configurada."); }
     const url = `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(locationString)}&lang=pt&limit=1&format=json&apiKey=${CHAVE_API}`;
     try {
         const response = await axios.get(url);
         if (response.data.results && response.data.results.length > 0) {
             const result = response.data.results[0];
-            return {
-                latitude: result.lat,
-                longitude: result.lon,
-                timezone: result.timezone.name
-            };
+            return { latitude: result.lat, longitude: result.lon, timezone: result.timezone.name };
         }
         return null;
     } catch (error) {
@@ -55,22 +49,15 @@ async function geocodeLocation(locationString) {
 
 async function buscarCidade(textoDigitado) {
     const CHAVE_API = process.env.GEOAPIFY_API_KEY;
-    if (!CHAVE_API) {
-        throw new Error("Configuração do servidor incompleta.");
-    }
+    if (!CHAVE_API) { throw new Error("Configuração do servidor incompleta."); }
     const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(textoDigitado)}&lang=pt&limit=5&type=city&format=json&apiKey=${CHAVE_API}`;
     try {
         const response = await axios.get(url);
         const resultadosLimpos = response.data.results ? response.data.results.map(r => ({
-            nome_formatado: r.formatted,
-            latitude: r.lat,
-            longitude: r.lon,
-            fuso_horario: r.timezone.name
+            nome_formatado: r.formatted, latitude: r.lat, longitude: r.lon, fuso_horario: r.timezone.name
         })) : [];
         return resultadosLimpos;
-    } catch (error) {
-        throw new Error("Erro ao comunicar com o serviço de geolocalização.");
-    }
+    } catch (error) { throw new Error("Erro ao comunicar com o serviço de geolocalização."); }
 }
 
 app.get('/api/cidades', async (req, res) => {
@@ -92,44 +79,34 @@ app.post('/calculate', async (req, res) => {
         if (year == null || month == null || day == null || hour == null || (!locationString && (latitude == null || longitude == null))) {
             return res.status(400).json({ error: 'Dados de entrada incompletos.' });
         }
-
         let lat, lon, timezone;
-
         if (latitude !== undefined && longitude !== undefined) {
             lat = parseFloat(latitude);
             lon = parseFloat(longitude);
         } else {
             const geoResult = await geocodeLocation(locationString);
-            if (!geoResult) {
-                return res.status(400).json({ error: `Coordenadas não encontradas para "${locationString}".` });
-            }
+            if (!geoResult) { return res.status(400).json({ error: `Coordenadas não encontradas para "${locationString}".` }); }
             lat = geoResult.latitude;
             lon = geoResult.longitude;
             timezone = geoResult.timezone;
         }
-
         const hourFloat = parseFloat(hour);
         const hours = Math.floor(hourFloat);
         const minutes = Math.round((hourFloat - hours) * 60);
-
         let birthTimeUtc;
         if (utcOffset !== undefined && utcOffset !== null) {
             const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
             const offsetInMinutes = utcOffset * 60;
             birthTimeUtc = moment(dateString).utcOffset(offsetInMinutes, true).utc();
         } else {
-            if (!timezone) {
-                timezone = moment.tz.guess(lat, lon);
-            }
+            if (!timezone) { timezone = moment.tz.guess(lat, lon); }
             const birthTimeLocal = moment.tz({ year, month: month - 1, day, hour: hours, minute: minutes }, timezone);
             birthTimeUtc = birthTimeLocal.clone().utc();
         }
-
         const utcYear = birthTimeUtc.year();
         const utcMonth = birthTimeUtc.month() + 1;
         const utcDay = birthTimeUtc.date();
         const utcHour = birthTimeUtc.hour() + (birthTimeUtc.minute() / 60) + (birthTimeUtc.second() / 3600);
-
         const jd_ut_obj = await sweph.utc_to_jd(utcYear, utcMonth, utcDay, utcHour, 0, 0, 1);
         const julianDay = jd_ut_obj.data[0];
 
@@ -141,11 +118,16 @@ app.post('/calculate', async (req, res) => {
             { id: SE_NEPTUNE, name: 'neptune' }, { id: SE_PLUTO, name: 'pluto' },
             { id: SE_TRUE_NODE, name: 'north_node' }
         ];
-
         const calculatedPlanets = {};
         for (const planet of planetsToCalc) {
             const position = await sweph.calc_ut(julianDay, planet.id, SEFLG_SPEED);
             calculatedPlanets[planet.name] = { longitude: position.data[0], latitude: position.data[1], speed: position.data[3] };
+        }
+
+        // --- CÁLCULO DE QUÍRON ---
+        const chironData = await calculateChiron(julianDay);
+        if (chironData) {
+            calculatedPlanets.chiron = chironData;
         }
 
         const northNodeLon = calculatedPlanets.north_node.longitude;
@@ -155,15 +137,12 @@ app.post('/calculate', async (req, res) => {
             latitude: -calculatedPlanets.north_node.latitude,
             speed: calculatedPlanets.north_node.speed
         };
-
         const foundAspects = calculateAspects(calculatedPlanets);
-
         for (const planetName in calculatedPlanets) {
             const planet = calculatedPlanets[planetName];
             const { name: signName } = getZodiacSign(planet.longitude);
             planet.sign = signName;
         }
-
         const enrichedData = {
             moon_phase: getMoonPhase(calculatedPlanets.sun.longitude, calculatedPlanets.moon.longitude),
             planets: calculatedPlanets,
@@ -171,10 +150,8 @@ app.post('/calculate', async (req, res) => {
             aspect_patterns: findAspectPatterns(foundAspects),
             balances: calculateBalances(calculatedPlanets)
         };
-
         const sunSignInfo = getZodiacSign(enrichedData.planets.sun.longitude);
         const isDiurnal = ZODIAC_SIGNS.indexOf(sunSignInfo.name) < 6;
-
         const classicalPlanets = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'north_node', 'south_node'];
         for (const planetName in enrichedData.planets) {
             const planet = enrichedData.planets[planetName];
@@ -185,33 +162,14 @@ app.post('/calculate', async (req, res) => {
                 planet.dignities = getDignities(planetName, planet.sign, decimalDegrees, isDiurnal);
             }
         }
-        
-        // --- MUDANÇA PRINCIPAL AQUI ---
-        
-        // 1. Gerar o relatório técnico como antes
         const technicalReport = generateTechnicalReport(enrichedData);
-
-        // 2. Chamar o motor de interpretação com o relatório
-        console.log("Gerando interpretação final com a API do Gemini...");
-        const finalInterpretation = await generateFinalInterpretation(technicalReport);
-
-        // 3. Enviar a interpretação final como um JSON
-        res.status(200).json({
-            interpretation: finalInterpretation,
-            // Opcional: você também pode enviar o relatório técnico se quiser
-            // technical_report: technicalReport 
-        });
-
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.status(200).send(technicalReport);
     } catch (error) {
         console.error("Erro no cálculo:", error);
         res.status(500).json({ error: 'Erro interno ao realizar o cálculo.', details: error.toString() });
     }
 });
 
-app.get('/', (req, res) => {
-    res.send('Servidor astrológico no ar.');
-});
-
-app.listen(PORT, () => {
-    console.log(`Servidor rodando na porta ${PORT}`);
-});
+app.get('/', (req, res) => { res.send('Servidor astrológico no ar.'); });
+app.listen(PORT, () => { console.log(`Servidor rodando na porta ${PORT}`); });
