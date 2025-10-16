@@ -1,3 +1,5 @@
+// knowledge_base/knowledgeBase.js
+
 const fs = require('fs');
 const path = require('path');
 const csv = require('csv-parser');
@@ -17,7 +19,6 @@ function loadCsvToMap(filePath) {
             .on('data', (row) => {
                 const keyColumn = row.id_unico || row.id_regente || row.id_signo || row.id_grau || row.id_frase;
                 const valueColumn = row.texto_interpretacao || row.texto_influencia || row.texto_motivacao_interna || row.texto_simbolo || row.texto_conectivo || row.texto;
-
                 if (keyColumn && valueColumn) {
                     const cleanKeyStr = cleanKey(String(keyColumn));
                     map.set(cleanKeyStr, String(valueColumn).trim());
@@ -52,4 +53,3 @@ async function loadKnowledgeBase() {
 }
 
 module.exports = { loadKnowledgeBase };
-
