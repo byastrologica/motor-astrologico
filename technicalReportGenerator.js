@@ -70,7 +70,6 @@ function generateTechnicalReport(data) {
         if (!p) return;
         
         if (index > 0) {
-            report += "----------------------------------------\n\n";
         }
         report += "--- Posição e Condições Planetárias ---\n\n";
 
