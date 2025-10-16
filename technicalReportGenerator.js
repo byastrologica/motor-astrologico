@@ -121,7 +121,6 @@ function generateTechnicalReport(data) {
     });
 
     if (aspect_patterns && aspect_patterns.length > 0) {
-        report += "\n----------------------------------------\n\n";
         report += "--- Configurações de Aspetos Principais ---\n\n";
         aspect_patterns.forEach((pattern, index) => {
              const planetDetails = pattern.planets.map(pName => {
